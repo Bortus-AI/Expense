@@ -11,6 +11,16 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     console.log(`Making ${config.method.toUpperCase()} request to ${config.url}`);
+    
+    // Ensure the API instance gets the same auth headers as the default axios instance
+    if (axios.defaults.headers.common['Authorization']) {
+      config.headers['Authorization'] = axios.defaults.headers.common['Authorization'];
+    }
+    
+    if (axios.defaults.headers.common['X-Company-ID']) {
+      config.headers['X-Company-ID'] = axios.defaults.headers.common['X-Company-ID'];
+    }
+    
     return config;
   },
   (error) => {
@@ -106,6 +116,22 @@ export const matchAPI = {
   
   getStats: () => 
     api.get('/matches/stats')
+};
+
+// Export API
+export const exportAPI = {
+  getOptions: () => 
+    api.get('/exports/options'),
+  
+  generatePDF: (reportType, data) => 
+    api.post(`/exports/pdf/${reportType}`, data, {
+      responseType: 'blob'
+    }),
+  
+  generateExcel: (reportType, data) => 
+    api.post(`/exports/excel/${reportType}`, data, {
+      responseType: 'blob'
+    })
 };
 
 // Health check
