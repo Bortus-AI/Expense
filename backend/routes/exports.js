@@ -73,6 +73,18 @@ router.post('/pdf/transactions', async (req, res) => {
       title = 'Transaction Summary Report'
     } = req.body;
 
+    // Debug logging
+    console.log('=== PDF TRANSACTIONS EXPORT DEBUG ===');
+    console.log('User:', req.user?.email);
+    console.log('Company ID:', req.companyId);
+    console.log('Current Company:', req.user?.currentCompany?.name);
+    console.log('Request body:', { startDate, endDate, includeMatched, includeUnmatched, title });
+
+    if (!req.companyId) {
+      console.error('No company ID found in request');
+      return res.status(400).json({ error: 'Company context required' });
+    }
+
     // Build query with company scoping and date filtering
     let query = `
       SELECT t.*, 
@@ -98,10 +110,24 @@ router.post('/pdf/transactions', async (req, res) => {
 
     query += ' GROUP BY t.id ORDER BY t.transaction_date DESC';
 
+    console.log('Final query:', query);
+    console.log('Query params:', params);
+
     db.all(query, params, async (err, transactions) => {
       if (err) {
         console.error('Error fetching transactions for export:', err);
         return res.status(500).json({ error: 'Failed to fetch transactions' });
+      }
+
+      console.log(`Found ${transactions.length} transactions for export`);
+      if (transactions.length > 0) {
+        console.log('Sample transaction:', {
+          id: transactions[0].id,
+          date: transactions[0].transaction_date,
+          description: transactions[0].description,
+          amount: transactions[0].amount,
+          company_id: transactions[0].company_id
+        });
       }
 
       try {
