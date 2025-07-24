@@ -214,7 +214,7 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try {
       if (accessToken) {
-        await axios.post('http://localhost:5000/api/auth/logout');
+        await api.post('/auth/logout');
       }
     } catch (error) {
       console.error('Logout request failed:', error);
@@ -244,7 +244,7 @@ export const AuthProvider = ({ children }) => {
   // Update user profile
   const updateProfile = async (profileData) => {
     try {
-      const response = await axios.put('http://localhost:5000/api/auth/profile', profileData);
+      const response = await api.put('/auth/profile', profileData);
       
       setUser(prev => ({
         ...prev,
@@ -265,7 +265,7 @@ export const AuthProvider = ({ children }) => {
   // Change password
   const changePassword = async (currentPassword, newPassword) => {
     try {
-      await axios.put('http://localhost:5000/api/auth/password', {
+      await api.put('/auth/password', {
         currentPassword,
         newPassword
       });
