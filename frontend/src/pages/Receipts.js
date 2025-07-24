@@ -32,7 +32,6 @@ const Receipts = () => {
     if (acceptedFiles.length === 0) return;
 
     setUploading(true);
-    const uploadResults = [];
     
     try {
       // Upload all files simultaneously

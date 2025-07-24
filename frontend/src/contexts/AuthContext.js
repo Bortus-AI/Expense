@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import axios from 'axios';
 import api from '../services/api';
@@ -51,7 +51,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Refresh access token
-  const refreshAccessToken = async () => {
+  const refreshAccessToken = useCallback(async () => {
     try {
       if (!refreshToken || isTokenExpired(refreshToken)) {
         logout();
@@ -72,7 +72,7 @@ export const AuthProvider = ({ children }) => {
       logout();
       return null;
     }
-  };
+  }, [refreshToken, isTokenExpired, logout]);
 
   // Axios response interceptor for automatic token refresh
   useEffect(() => {
@@ -98,10 +98,10 @@ export const AuthProvider = ({ children }) => {
     return () => {
       axios.interceptors.response.eject(responseInterceptor);
     };
-  }, [refreshToken]);
+  }, [refreshToken, refreshAccessToken]);
 
   // Load user data from token
-  const loadUserFromToken = async () => {
+  const loadUserFromToken = useCallback(async () => {
     if (!accessToken) {
       setLoading(false);
       return;
@@ -139,12 +139,12 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [accessToken, isTokenExpired, refreshAccessToken, logout]);
 
   // Initialize auth state
   useEffect(() => {
     loadUserFromToken();
-  }, []);
+  }, [loadUserFromToken]);
 
   // Login function
   const login = async (email, password) => {
@@ -211,7 +211,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Logout function
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       if (accessToken) {
         await api.post('/auth/logout');
@@ -233,7 +233,7 @@ export const AuthProvider = ({ children }) => {
       delete axios.defaults.headers.common['Authorization'];
       delete axios.defaults.headers.common['X-Company-ID'];
     }
-  };
+  }, [accessToken]);
 
   // Switch company
   const switchCompany = (company) => {
@@ -244,7 +244,7 @@ export const AuthProvider = ({ children }) => {
   // Update user profile
   const updateProfile = async (profileData) => {
     try {
-      const response = await api.put('/auth/profile', profileData);
+      await api.put('/auth/profile', profileData);
       
       setUser(prev => ({
         ...prev,
