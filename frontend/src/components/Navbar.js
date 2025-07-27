@@ -1,16 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { toast } from 'react-toastify';
 
 const Navbar = () => {
+  const { user, companies, logout, switchCompany } = useAuth();
   const location = useLocation();
-  const { user, currentCompany, companies, logout, switchCompany } = useAuth();
+  const [showCompanyMenu, setShowCompanyMenu] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
-  const [showCompanySelector, setShowCompanySelector] = useState(false);
+  const companyMenuRef = useRef(null);
+  const userMenuRef = useRef(null);
 
   const isActive = (path) => {
-    return location.pathname === path ? 'active' : '';
+    return location.pathname === path;
   };
 
   const handleLogout = async () => {
@@ -20,62 +22,85 @@ const Navbar = () => {
 
   const handleCompanySwitch = (company) => {
     switchCompany(company);
-    setShowCompanySelector(false);
-    toast.success(`Switched to ${company.name}`);
+    setShowCompanyMenu(false);
   };
+
+  // Close menus when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (companyMenuRef.current && !companyMenuRef.current.contains(event.target)) {
+        setShowCompanyMenu(false);
+      }
+      if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
+        setShowUserMenu(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  const currentCompany = user?.currentCompany;
 
   return (
     <nav className="navbar">
       <div className="navbar-content">
-        <Link to="/dashboard" className="navbar-brand">
-          💳 Expense Receipt Matcher
-        </Link>
+        <div className="navbar-brand">
+          <Link to="/dashboard">💳 Expense Matcher</Link>
+        </div>
         
-        <ul className="navbar-nav">
-          <li>
-            <Link to="/dashboard" className={`nav-link ${isActive('/dashboard')}`}>
-              Dashboard
-            </Link>
-          </li>
-          <li>
-            <Link to="/transactions" className={`nav-link ${isActive('/transactions')}`}>
-              Transactions
-            </Link>
-          </li>
-          <li>
-            <Link to="/receipts" className={`nav-link ${isActive('/receipts')}`}>
-              Receipts
-            </Link>
-          </li>
-          <li>
-            <Link to="/matches" className={`nav-link ${isActive('/matches')}`}>
-              Matches
-            </Link>
-          </li>
-          <li>
-            <Link to="/import" className={`nav-link ${isActive('/import')}`}>
-              Import
-            </Link>
-          </li>
-          <li>
-            <Link to="/exports" className={`nav-link ${isActive('/exports')}`}>
-              Export
-            </Link>
-          </li>
-        </ul>
+        <div className="navbar-nav">
+          <Link 
+            to="/dashboard" 
+            className={`nav-link ${isActive('/dashboard') ? 'active' : ''}`}
+          >
+            📊 Dashboard
+          </Link>
+          <Link 
+            to="/transactions" 
+            className={`nav-link ${isActive('/transactions') ? 'active' : ''}`}
+          >
+            💳 Transactions
+          </Link>
+          <Link 
+            to="/receipts" 
+            className={`nav-link ${isActive('/receipts') ? 'active' : ''}`}
+          >
+            🧾 Receipts
+          </Link>
+          <Link 
+            to="/matches" 
+            className={`nav-link ${isActive('/matches') ? 'active' : ''}`}
+          >
+            🔗 Matches
+          </Link>
+          <Link 
+            to="/import" 
+            className={`nav-link ${isActive('/import') ? 'active' : ''}`}
+          >
+            📤 Import
+          </Link>
+          <Link 
+            to="/exports" 
+            className={`nav-link ${isActive('/exports') ? 'active' : ''}`}
+          >
+            📋 Export
+          </Link>
+        </div>
 
         <div className="navbar-user">
           {/* Company Selector */}
           {companies && companies.length > 1 && (
-            <div className="company-selector">
+            <div className="company-selector" ref={companyMenuRef}>
               <button 
                 className="company-button"
-                onClick={() => setShowCompanySelector(!showCompanySelector)}
+                onClick={() => setShowCompanyMenu(!showCompanyMenu)}
               >
                 🏢 {currentCompany?.name || 'Select Company'}
-                <span className="dropdown-arrow">▼</span>
               </button>
-              {showCompanySelector && (
+              {showCompanyMenu && (
                 <div className="company-dropdown">
                   {companies.map(company => (
                     <button
@@ -83,8 +108,8 @@ const Navbar = () => {
                       className={`company-option ${currentCompany?.id === company.id ? 'active' : ''}`}
                       onClick={() => handleCompanySwitch(company)}
                     >
-                      <span className="company-name">{company.name}</span>
-                      <span className="company-role">{company.role}</span>
+                      <div className="company-name">{company.name}</div>
+                      <div className="company-role">{company.role}</div>
                     </button>
                   ))}
                 </div>
@@ -93,7 +118,7 @@ const Navbar = () => {
           )}
 
           {/* User Menu */}
-          <div className="user-menu">
+          <div className="user-menu" ref={userMenuRef}>
             <button 
               className="user-button"
               onClick={() => setShowUserMenu(!showUserMenu)}
@@ -118,12 +143,20 @@ const Navbar = () => {
                   )}
                 </div>
                 <div className="user-actions">
-                  <button className="dropdown-item">
+                  <Link 
+                    to="/profile" 
+                    className="dropdown-item"
+                    onClick={() => setShowUserMenu(false)}
+                  >
                     👤 Profile Settings
-                  </button>
-                  <button className="dropdown-item">
+                  </Link>
+                  <Link 
+                    to="/company-settings" 
+                    className="dropdown-item"
+                    onClick={() => setShowUserMenu(false)}
+                  >
                     🏢 Company Settings
-                  </button>
+                  </Link>
                   <hr />
                   <button className="dropdown-item logout" onClick={handleLogout}>
                     🚪 Logout

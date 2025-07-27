@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import './App.css';
+import './styles/auth.css';
 
 // Authentication
 import { AuthProvider } from './contexts/AuthContext';
@@ -17,6 +18,8 @@ import Receipts from './pages/Receipts';
 import Matches from './pages/Matches';
 import ImportTransactions from './pages/ImportTransactions';
 import Exports from './pages/Exports';
+import Profile from './pages/Profile';
+import CompanySettings from './pages/CompanySettings';
 
 function App() {
   return (
@@ -32,15 +35,17 @@ function App() {
               <div className="authenticated-app">
                 <Navbar />
                 <main className="main-content">
-                                      <Routes>
-                      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                      <Route path="/dashboard" element={<Dashboard />} />
-                      <Route path="/transactions" element={<Transactions />} />
-                      <Route path="/receipts" element={<Receipts />} />
-                      <Route path="/matches" element={<Matches />} />
-                      <Route path="/import" element={<ImportTransactions />} />
-                      <Route path="/exports" element={<Exports />} />
-                    </Routes>
+                  <Routes>
+                    <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                    <Route path="/dashboard" element={<Dashboard />} />
+                    <Route path="/transactions" element={<Transactions />} />
+                    <Route path="/receipts" element={<Receipts />} />
+                    <Route path="/matches" element={<Matches />} />
+                    <Route path="/import" element={<ImportTransactions />} />
+                    <Route path="/exports" element={<Exports />} />
+                    <Route path="/profile" element={<Profile />} />
+                    <Route path="/company-settings" element={<CompanySettings />} />
+                  </Routes>
                 </main>
               </div>
             </ProtectedRoute>
@@ -49,7 +54,7 @@ function App() {
         
         <ToastContainer
           position="top-right"
-          autoClose={5000}
+          autoClose={3000}
           hideProgressBar={false}
           newestOnTop={false}
           closeOnClick

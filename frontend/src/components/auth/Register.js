@@ -205,7 +205,14 @@ const Register = ({ onToggleForm }) => {
             className="auth-button primary"
             disabled={loading}
           >
-            {loading ? 'Creating Account...' : 'Create Account'}
+            {loading ? (
+              <>
+                <span className="spinner" style={{ width: '16px', height: '16px', borderWidth: '2px' }}></span>
+                Creating Account...
+              </>
+            ) : (
+              'Create Account'
+            )}
           </button>
         </form>
 

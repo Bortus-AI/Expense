@@ -55,7 +55,7 @@ const Auth = () => {
             </div>
           </div>
           
-          <div className="auth-forms">
+          <div className="auth-forms-wrapper">
             {isLogin ? (
               <Login onToggleForm={toggleForm} />
             ) : (

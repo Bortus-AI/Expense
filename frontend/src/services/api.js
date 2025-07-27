@@ -138,4 +138,6 @@ export const exportAPI = {
 export const healthCheck = () => 
   api.get('/health');
 
+// Export both as named export and default export
+export { api };
 export default api; 
