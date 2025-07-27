@@ -36,12 +36,36 @@ const limiter = rateLimit({
 app.use(limiter);
 
 // CORS configuration
+const getAllowedOrigins = () => {
+  const origins = [];
+  
+  // Always allow localhost for development
+  origins.push('http://localhost:3000', 'http://localhost:3001');
+  
+  // Add custom frontend URL from environment variable
+  if (process.env.FRONTEND_URL) {
+    origins.push(process.env.FRONTEND_URL);
+  }
+  
+  // Add deployed frontend IP (temporary fix)
+  origins.push('http://66.23.193.169:3000');
+  
+  // Production domains
+  if (process.env.NODE_ENV === 'production') {
+    // Add your production domains here
+    origins.push('https://yourdomain.com');
+  }
+  
+  console.log('Allowed CORS origins:', origins);
+  return origins;
+};
+
 const corsOptions = {
-  origin: process.env.NODE_ENV === 'production' 
-    ? ['https://yourdomain.com'] // Replace with your production domain
-    : ['http://localhost:3000', 'http://localhost:3001'],
+  origin: getAllowedOrigins(),
   credentials: true,
-  optionsSuccessStatus: 200
+  optionsSuccessStatus: 200,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-company-id']
 };
 app.use(cors(corsOptions));
 
