@@ -38,6 +38,18 @@ router.get('/', (req, res) => {
   const limit = parseInt(req.query.limit) || 50;
   const offset = (page - 1) * limit;
 
+  // Build query with proper user/admin filtering
+  let whereClause = 'WHERE t.company_id = ?';
+  let queryParams = [req.companyId];
+  let countParams = [req.companyId];
+
+  // If user is not admin, only show their own transactions
+  if (req.user.currentRole !== 'admin') {
+    whereClause += ' AND t.created_by = ?';
+    queryParams.push(req.user.id);
+    countParams.push(req.user.id);
+  }
+
   const query = `
     SELECT t.*, 
            COUNT(m.id) as receipt_count,
@@ -45,18 +57,23 @@ router.get('/', (req, res) => {
     FROM transactions t
     LEFT JOIN matches m ON t.id = m.transaction_id AND m.user_confirmed = 1
     LEFT JOIN receipts r ON m.receipt_id = r.id
+    ${whereClause}
     GROUP BY t.id
     ORDER BY t.transaction_date DESC
     LIMIT ? OFFSET ?
   `;
 
-  db.all(query, [limit, offset], (err, rows) => {
+  // Add limit and offset to params
+  queryParams.push(limit, offset);
+
+  db.all(query, queryParams, (err, rows) => {
     if (err) {
       return res.status(500).json({ error: err.message });
     }
 
-    // Get total count
-    db.get('SELECT COUNT(*) as total FROM transactions', (err, countRow) => {
+    // Get total count with same filtering
+    const countQuery = `SELECT COUNT(*) as total FROM transactions t ${whereClause}`;
+    db.get(countQuery, countParams, (err, countRow) => {
       if (err) {
         return res.status(500).json({ error: err.message });
       }
@@ -76,6 +93,16 @@ router.get('/', (req, res) => {
 
 // Get single transaction
 router.get('/:id', (req, res) => {
+  // Build query with proper user/admin filtering
+  let whereClause = 'WHERE t.id = ? AND t.company_id = ?';
+  let queryParams = [req.params.id, req.companyId];
+
+  // If user is not admin, only show their own transactions
+  if (req.user.currentRole !== 'admin') {
+    whereClause += ' AND t.created_by = ?';
+    queryParams.push(req.user.id);
+  }
+
   const query = `
     SELECT t.*, 
            GROUP_CONCAT(r.original_filename) as receipts,
@@ -83,11 +110,11 @@ router.get('/:id', (req, res) => {
     FROM transactions t
     LEFT JOIN matches m ON t.id = m.transaction_id AND m.user_confirmed = 1
     LEFT JOIN receipts r ON m.receipt_id = r.id
-    WHERE t.id = ?
+    ${whereClause}
     GROUP BY t.id
   `;
 
-  db.get(query, [req.params.id], (err, row) => {
+  db.get(query, queryParams, (err, row) => {
     if (err) {
       return res.status(500).json({ error: err.message });
     }

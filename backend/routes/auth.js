@@ -85,11 +85,11 @@ router.post('/register', authLimiter, async (req, res) => {
 
             const companyId = this.lastID;
 
-            // Link user to company as admin
+            // Link user to company as user (not admin)
             db.run(`
               INSERT INTO user_companies (user_id, company_id, role, status)
               VALUES (?, ?, ?, ?)
-            `, [userId, companyId, 'admin', 'active'], function(err) {
+            `, [userId, companyId, 'user', 'active'], function(err) {
               if (err) {
                 console.error('Error linking user to company:', err);
                 db.run('ROLLBACK');
@@ -124,7 +124,7 @@ router.post('/register', authLimiter, async (req, res) => {
                   company: {
                     id: companyId,
                     name: finalCompanyName,
-                    role: 'admin'
+                    role: 'user'
                   },
                   accessToken,
                   refreshToken

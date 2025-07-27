@@ -137,9 +137,16 @@ const Navbar = () => {
                   <strong>{user?.firstName} {user?.lastName}</strong>
                   <span>{user?.email}</span>
                   {currentCompany && (
-                    <span className="current-company">
-                      {currentCompany.name} • {currentCompany.role}
-                    </span>
+                    <div className="role-info">
+                      <span className="current-company">
+                        {currentCompany.name} • {currentCompany.role}
+                      </span>
+                      <span className="data-scope text-sm">
+                        {currentCompany.role === 'admin' 
+                          ? '👑 Viewing all company data' 
+                          : '👤 Viewing your personal data'}
+                      </span>
+                    </div>
                   )}
                 </div>
                 <div className="user-actions">

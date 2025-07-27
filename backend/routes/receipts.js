@@ -681,6 +681,18 @@ router.get('/', (req, res) => {
   const limit = parseInt(req.query.limit) || 20;
   const offset = (page - 1) * limit;
 
+  // Build query with proper user/admin filtering
+  let whereClause = 'WHERE r.company_id = ?';
+  let queryParams = [req.companyId];
+  let countParams = [req.companyId];
+
+  // If user is not admin, only show their own receipts
+  if (req.user.currentRole !== 'admin') {
+    whereClause += ' AND r.created_by = ?';
+    queryParams.push(req.user.id);
+    countParams.push(req.user.id);
+  }
+
   const query = `
     SELECT r.*, 
            COUNT(m.id) as match_count,
@@ -688,18 +700,23 @@ router.get('/', (req, res) => {
     FROM receipts r
     LEFT JOIN matches m ON r.id = m.receipt_id AND m.user_confirmed = 1
     LEFT JOIN transactions t ON m.transaction_id = t.id
-    WHERE r.company_id = ?
+    ${whereClause}
     GROUP BY r.id
     ORDER BY r.upload_date DESC
     LIMIT ? OFFSET ?
   `;
 
-  db.all(query, [req.companyId, limit, offset], (err, rows) => {
+  // Add limit and offset to params
+  queryParams.push(limit, offset);
+
+  db.all(query, queryParams, (err, rows) => {
     if (err) {
       return res.status(500).json({ error: err.message });
     }
 
-    db.get('SELECT COUNT(*) as total FROM receipts WHERE company_id = ?', [req.companyId], (err, countRow) => {
+    // Count query with same filtering
+    const countQuery = `SELECT COUNT(*) as total FROM receipts r ${whereClause}`;
+    db.get(countQuery, countParams, (err, countRow) => {
       if (err) {
         return res.status(500).json({ error: err.message });
       }
@@ -719,6 +736,16 @@ router.get('/', (req, res) => {
 
 // Get single receipt
 router.get('/:id', (req, res) => {
+  // Build query with proper user/admin filtering
+  let whereClause = 'WHERE r.id = ? AND r.company_id = ?';
+  let queryParams = [req.params.id, req.companyId];
+
+  // If user is not admin, only show their own receipts
+  if (req.user.currentRole !== 'admin') {
+    whereClause += ' AND r.created_by = ?';
+    queryParams.push(req.user.id);
+  }
+
   const query = `
     SELECT r.*, 
            GROUP_CONCAT(t.description) as matched_transactions,
@@ -726,11 +753,11 @@ router.get('/:id', (req, res) => {
     FROM receipts r
     LEFT JOIN matches m ON r.id = m.receipt_id AND m.user_confirmed = 1
     LEFT JOIN transactions t ON m.transaction_id = t.id
-    WHERE r.id = ? AND r.company_id = ?
+    ${whereClause}
     GROUP BY r.id
   `;
 
-  db.get(query, [req.params.id, req.companyId], (err, row) => {
+  db.get(query, queryParams, (err, row) => {
     if (err) {
       return res.status(500).json({ error: err.message });
     }
@@ -882,9 +909,19 @@ router.delete('/:id', (req, res) => {
 
 // Get unmatched receipts
 router.get('/unmatched/list', (req, res) => {
+  // Build query with proper user/admin filtering
+  let whereClause = 'WHERE r.company_id = ?';
+  let queryParams = [req.companyId];
+
+  // If user is not admin, only show their own receipts
+  if (req.user.currentRole !== 'admin') {
+    whereClause += ' AND r.created_by = ?';
+    queryParams.push(req.user.id);
+  }
+
   const query = `
     SELECT * FROM receipts r
-    WHERE r.company_id = ?
+    ${whereClause}
     AND r.id NOT IN (
       SELECT receipt_id FROM matches WHERE user_confirmed = 1
     )
@@ -892,7 +929,7 @@ router.get('/unmatched/list', (req, res) => {
     ORDER BY r.upload_date DESC
   `;
 
-  db.all(query, [req.companyId], (err, rows) => {
+  db.all(query, queryParams, (err, rows) => {
     if (err) {
       return res.status(500).json({ error: err.message });
     }

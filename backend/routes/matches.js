@@ -2,6 +2,13 @@ const express = require('express');
 const router = express.Router();
 const db = require('../database/init');
 const moment = require('moment');
+const { authenticateToken, getUserCompanies, requireCompanyAccess, addUserTracking } = require('../middleware/auth');
+
+// Apply authentication to all routes
+router.use(authenticateToken);
+router.use(getUserCompanies);
+router.use(requireCompanyAccess);
+router.use(addUserTracking);
 
 // Matching algorithm function
 const findPotentialMatches = (receipt, transactions) => {
@@ -105,6 +112,15 @@ const findPotentialMatches = (receipt, transactions) => {
 
 // Get all matches
 router.get('/', (req, res) => {
+  // If user is not admin, only show matches for their own transactions/receipts
+  let whereClause = 'WHERE t.company_id = ? AND r.company_id = ?';
+  let queryParams = [req.companyId, req.companyId];
+
+  if (req.user.currentRole !== 'admin') {
+    whereClause += ' AND (t.created_by = ? OR r.created_by = ?)';
+    queryParams.push(req.user.id, req.user.id);
+  }
+
   const query = `
     SELECT m.*, 
            t.transaction_date, t.description, t.amount as transaction_amount, t.category,
@@ -112,10 +128,11 @@ router.get('/', (req, res) => {
     FROM matches m
     JOIN transactions t ON m.transaction_id = t.id
     JOIN receipts r ON m.receipt_id = r.id
+    ${whereClause}
     ORDER BY m.created_at DESC
   `;
 
-  db.all(query, [], (err, rows) => {
+  db.all(query, queryParams, (err, rows) => {
     if (err) {
       return res.status(500).json({ error: err.message });
     }
@@ -125,6 +142,15 @@ router.get('/', (req, res) => {
 
 // Get pending matches (not confirmed by user)
 router.get('/pending', (req, res) => {
+  // If user is not admin, only show pending matches for their own transactions/receipts
+  let whereClause = 'WHERE m.user_confirmed = FALSE AND t.company_id = ? AND r.company_id = ?';
+  let queryParams = [req.companyId, req.companyId];
+
+  if (req.user.currentRole !== 'admin') {
+    whereClause += ' AND (t.created_by = ? OR r.created_by = ?)';
+    queryParams.push(req.user.id, req.user.id);
+  }
+
   const query = `
     SELECT m.*, 
            t.transaction_date, t.description, t.amount as transaction_amount, t.category,
@@ -132,11 +158,11 @@ router.get('/pending', (req, res) => {
     FROM matches m
     JOIN transactions t ON m.transaction_id = t.id
     JOIN receipts r ON m.receipt_id = r.id
-    WHERE m.user_confirmed = FALSE
+    ${whereClause}
     ORDER BY m.match_confidence DESC, m.created_at DESC
   `;
 
-  db.all(query, [], (err, rows) => {
+  db.all(query, queryParams, (err, rows) => {
     if (err) {
       return res.status(500).json({ error: err.message });
     }
