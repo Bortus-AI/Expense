@@ -1,5 +1,6 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
+const bcrypt = require('bcryptjs');
 
 const dbPath = path.join(__dirname, 'expense_matcher.db');
 
@@ -11,6 +12,102 @@ const db = new sqlite3.Database(dbPath, (err) => {
     console.log('Connected to SQLite database');
   }
 });
+
+// Default admin user for fresh deployments
+const DEFAULT_ADMIN = {
+  email: 'admin@company.com',
+  password: 'admin123!',
+  firstName: 'Admin',
+  lastName: 'User',
+  companyName: 'Default Company'
+};
+
+// Function to create default admin user if none exist
+const createDefaultAdminIfNeeded = async () => {
+  try {
+    // Check if any users exist
+    const userCount = await new Promise((resolve, reject) => {
+      db.get('SELECT COUNT(*) as count FROM users', [], (err, row) => {
+        if (err) reject(err);
+        else resolve(row.count);
+      });
+    });
+
+    if (userCount === 0) {
+      console.log('🚀 No users found - creating default admin user...');
+      
+      // Hash password
+      const saltRounds = 12;
+      const passwordHash = await bcrypt.hash(DEFAULT_ADMIN.password, saltRounds);
+
+      // Create admin user in transaction
+      await new Promise((resolve, reject) => {
+        db.serialize(() => {
+          db.run('BEGIN TRANSACTION');
+
+          db.run(`
+            INSERT INTO users (email, password_hash, first_name, last_name, email_verified)
+            VALUES (?, ?, ?, ?, ?)
+          `, [
+            DEFAULT_ADMIN.email,
+            passwordHash,
+            DEFAULT_ADMIN.firstName,
+            DEFAULT_ADMIN.lastName,
+            true
+          ], function(err) {
+            if (err) {
+              db.run('ROLLBACK');
+              reject(err);
+              return;
+            }
+
+            const userId = this.lastID;
+
+            db.run(`
+              INSERT INTO companies (name, plan_type)
+              VALUES (?, ?)
+            `, [DEFAULT_ADMIN.companyName, 'basic'], function(err) {
+              if (err) {
+                db.run('ROLLBACK');
+                reject(err);
+                return;
+              }
+
+              const companyId = this.lastID;
+
+              db.run(`
+                INSERT INTO user_companies (user_id, company_id, role, status)
+                VALUES (?, ?, ?, ?)
+              `, [userId, companyId, 'admin', 'active'], function(err) {
+                if (err) {
+                  db.run('ROLLBACK');
+                  reject(err);
+                  return;
+                }
+
+                db.run('COMMIT', (err) => {
+                  if (err) {
+                    reject(err);
+                  } else {
+                    resolve();
+                  }
+                });
+              });
+            });
+          });
+        });
+      });
+
+      console.log('✅ Default admin user created successfully!');
+      console.log('📧 Login with:');
+      console.log(`   Email:    ${DEFAULT_ADMIN.email}`);
+      console.log(`   Password: ${DEFAULT_ADMIN.password}`);
+      console.log('🔐 Please change the password after first login!');
+    }
+  } catch (error) {
+    console.error('❌ Error creating default admin user:', error);
+  }
+};
 
 // Create tables
 const initDatabase = () => {
@@ -225,6 +322,11 @@ const initDatabase = () => {
   });
 
   console.log('Database tables created/verified');
+  
+  // Create default admin user if needed (run after a short delay to ensure tables are ready)
+  setTimeout(() => {
+    createDefaultAdminIfNeeded();
+  }, 1000);
 };
 
 // Initialize database on module load
