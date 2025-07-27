@@ -35,7 +35,8 @@ router.get('/options', (req, res) => {
           groupBy: ['date', 'merchant', 'amount'],
           includeOCRData: true,
           includeMatched: true,
-          includeUnmatched: true
+          includeUnmatched: true,
+          maxPagesPerReceipt: true
         }
       },
       {
@@ -267,7 +268,8 @@ router.post('/pdf/receipts', async (req, res) => {
       groupBy = 'date',
       title = 'Receipt Gallery Report',
       includeMatched = true,
-      includeUnmatched = true
+      includeUnmatched = true,
+      maxPagesPerReceipt = null
     } = req.body;
 
     if (!req.companyId) {
@@ -333,7 +335,8 @@ router.post('/pdf/receipts', async (req, res) => {
           title,
           groupBy,
           includeMatched,
-          includeUnmatched
+          includeUnmatched,
+          maxPagesPerReceipt
         });
 
         // Set response headers for PDF download

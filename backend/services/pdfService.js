@@ -62,7 +62,8 @@ class PDFService {
       title = 'Receipt Gallery Report',
       groupBy = 'date', // 'date', 'merchant', 'amount'
       includeMatched = true,
-      includeUnmatched = true
+      includeUnmatched = true,
+      maxPagesPerReceipt = null // null = all pages, number = limit pages per PDF
     } = options;
 
     const doc = new PDFDocument({ margin: this.pageMargin });
@@ -115,13 +116,13 @@ class PDFService {
     // If there are PDF receipts to embed, merge them into the final document
     if (doc._pdfReceiptsToEmbed && doc._pdfReceiptsToEmbed.length > 0) {
       console.log(`Embedding ${doc._pdfReceiptsToEmbed.length} PDF receipts into the report`);
-      return await this.embedPdfReceipts(doc, doc._pdfReceiptsToEmbed);
+      return await this.embedPdfReceipts(doc, doc._pdfReceiptsToEmbed, maxPagesPerReceipt);
     }
 
     return doc;
   }
 
-  async embedPdfReceipts(mainDoc, pdfReceipts) {
+  async embedPdfReceipts(mainDoc, pdfReceipts, maxPagesPerReceipt = null) {
     try {
       // End the main document and get its buffer
       mainDoc.end();
@@ -154,7 +155,13 @@ class PDFService {
           color: rgb(0.2, 0.2, 0.2)
         });
         
-        separatorPage.drawText('The following pages contain the original PDF receipts referenced in this report:', {
+        let separatorText = 'The following pages contain the original PDF receipts referenced in this report';
+        if (maxPagesPerReceipt) {
+          separatorText += ` (limited to ${maxPagesPerReceipt} page${maxPagesPerReceipt > 1 ? 's' : ''} per receipt)`;
+        }
+        separatorText += ':';
+        
+        separatorPage.drawText(separatorText, {
           x: 50,
           y: height - 140,
           size: 12,
@@ -182,7 +189,16 @@ class PDFService {
             
             const pdfBuffer = fs.readFileSync(pdfReceipt.filePath);
             const receiptPdf = await PDFLib.load(pdfBuffer);
-            const receiptPages = await mergedPdf.copyPages(receiptPdf, receiptPdf.getPageIndices());
+            
+            // Determine which pages to include
+            const totalPages = receiptPdf.getPageCount();
+            const pagesToInclude = maxPagesPerReceipt 
+              ? Math.min(maxPagesPerReceipt, totalPages)
+              : totalPages;
+            
+            // Get the specified number of pages (starting from page 0)
+            const pageIndices = Array.from({length: pagesToInclude}, (_, i) => i);
+            const receiptPages = await mergedPdf.copyPages(receiptPdf, pageIndices);
             
             // Add a title page for this receipt
             const titlePage = mergedPdf.addPage();
@@ -195,11 +211,26 @@ class PDFService {
               color: rgb(0.2, 0.2, 0.2)
             });
 
+            // Add page count info
+            let pageInfo = `Pages included: ${pagesToInclude}`;
+            if (maxPagesPerReceipt && totalPages > maxPagesPerReceipt) {
+              pageInfo += ` of ${totalPages} (limited)`;
+            } else if (totalPages > 1) {
+              pageInfo += ` of ${totalPages}`;
+            }
+            
+            titlePage.drawText(pageInfo, {
+              x: 50,
+              y: height - 120,
+              size: 10,
+              color: rgb(0.5, 0.5, 0.5)
+            });
+
             // Add OCR extracted data if available
             if (pdfReceipt.receiptData.extracted_merchant) {
               titlePage.drawText(`Merchant: ${pdfReceipt.receiptData.extracted_merchant}`, {
                 x: 50,
-                y: height - 140,
+                y: height - 150,
                 size: 12,
                 color: rgb(0.3, 0.3, 0.3)
               });
@@ -208,7 +239,7 @@ class PDFService {
             if (pdfReceipt.receiptData.extracted_amount) {
               titlePage.drawText(`Amount: $${parseFloat(pdfReceipt.receiptData.extracted_amount).toFixed(2)}`, {
                 x: 50,
-                y: height - 160,
+                y: height - 170,
                 size: 12,
                 color: rgb(0.3, 0.3, 0.3)
               });
@@ -217,7 +248,7 @@ class PDFService {
             if (pdfReceipt.receiptData.extracted_date) {
               titlePage.drawText(`Date: ${pdfReceipt.receiptData.extracted_date}`, {
                 x: 50,
-                y: height - 180,
+                y: height - 190,
                 size: 12,
                 color: rgb(0.3, 0.3, 0.3)
               });
@@ -225,13 +256,15 @@ class PDFService {
 
             titlePage.drawText('Original receipt pages follow:', {
               x: 50,
-              y: height - 220,
+              y: height - 230,
               size: 10,
               color: rgb(0.4, 0.4, 0.4)
             });
             
-            // Add all pages from the receipt PDF
+            // Add the selected pages from the receipt PDF
             receiptPages.forEach(page => mergedPdf.addPage(page));
+            
+            console.log(`Added ${pagesToInclude} page${pagesToInclude > 1 ? 's' : ''} from ${pdfReceipt.filename} (${totalPages} total pages)`);
             
           } else {
             console.error(`PDF receipt file not found: ${pdfReceipt.filePath}`);
@@ -252,13 +285,12 @@ class PDFService {
       
       pdfStream.push(mergedPdfBytes);
       pdfStream.push(null); // End the stream
-
+      
       return pdfStream;
-
+      
     } catch (error) {
       console.error('Error embedding PDF receipts:', error);
-      // Fallback to original document
-      return mainDoc;
+      throw error;
     }
   }
 

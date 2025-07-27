@@ -11,6 +11,7 @@ const Exports = () => {
     includeMatched: true,
     includeUnmatched: true,
     includeOCRData: true,
+    maxPagesPerReceipt: '',
     title: '',
     groupBy: 'date'
   });
@@ -123,6 +124,7 @@ const Exports = () => {
       includeMatched: true,
       includeUnmatched: true,
       includeOCRData: true,
+      maxPagesPerReceipt: '',
       title: '',
       groupBy: 'date'
     });
@@ -313,6 +315,27 @@ const Exports = () => {
                     </div>
                   </div>
 
+                  {format === 'pdf' && (
+                    <div className="option-group">
+                      <label htmlFor="maxPagesPerReceipt">PDF Pages Per Receipt</label>
+                      <select
+                        id="maxPagesPerReceipt"
+                        value={options.maxPagesPerReceipt}
+                        onChange={(e) => handleOptionChange('maxPagesPerReceipt', e.target.value === '' ? null : parseInt(e.target.value))}
+                        className="form-select"
+                      >
+                        <option value="">All pages (may create large reports)</option>
+                        <option value="1">First page only</option>
+                        <option value="2">First 2 pages</option>
+                        <option value="3">First 3 pages</option>
+                        <option value="5">First 5 pages</option>
+                      </select>
+                      <small className="text-gray">
+                        Limit pages from each PDF receipt to reduce report size. Your current report would be shorter with this setting.
+                      </small>
+                    </div>
+                  )}
+
                   {format === 'excel' && (
                     <div className="option-group">
                       <div className="checkbox-group">
@@ -376,6 +399,9 @@ const Exports = () => {
             </div>
             <div className="tip">
               <strong>Match Status Filtering:</strong> Choose to include matched items, unmatched items, or both in your reports.
+            </div>
+            <div className="tip">
+              <strong>PDF Page Limiting:</strong> Limit pages per PDF receipt to reduce report size. Multi-page invoices can make reports very long.
             </div>
             <div className="tip">
               <strong>Date Ranges:</strong> Smaller date ranges generate faster. For large datasets, consider monthly exports.
