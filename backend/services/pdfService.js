@@ -60,22 +60,48 @@ class PDFService {
     const {
       companyName = 'Company',
       title = 'Receipt Gallery Report',
-      groupBy = 'date' // 'date', 'merchant', 'amount'
+      groupBy = 'date', // 'date', 'merchant', 'amount'
+      includeMatched = true,
+      includeUnmatched = true
     } = options;
 
     const doc = new PDFDocument({ margin: this.pageMargin });
     let yPosition = this.pageMargin;
 
+    // Generate subtitle based on match status filtering
+    let subtitle = '';
+    if (includeMatched && !includeUnmatched) {
+      subtitle = 'Matched Receipts Only';
+    } else if (!includeMatched && includeUnmatched) {
+      subtitle = 'Unmatched Receipts Only';
+    } else {
+      subtitle = 'All Receipts (Matched & Unmatched)';
+    }
+
     // Header
-    yPosition = this.addHeader(doc, title, companyName, yPosition);
+    yPosition = this.addHeader(doc, title || 'Receipt Gallery Report', companyName, yPosition);
+    
+    // Add subtitle for match status
+    if (subtitle) {
+      doc.fontSize(12)
+         .fillColor(this.colors.lightText)
+         .text(subtitle, this.pageMargin, yPosition);
+      yPosition += 25;
+    }
 
     // Group receipts
     const groupedReceipts = this.groupReceipts(receipts, groupBy);
 
     if (Object.keys(groupedReceipts).length === 0) {
+      const emptyMessage = includeMatched && !includeUnmatched 
+        ? 'No matched receipts found for the selected criteria.'
+        : !includeMatched && includeUnmatched
+        ? 'No unmatched receipts found for the selected criteria.'
+        : 'No receipts found for the selected criteria.';
+        
       doc.fontSize(12)
          .fillColor(this.colors.text)
-         .text('No receipts found for the selected criteria.', this.pageMargin, yPosition);
+         .text(emptyMessage, this.pageMargin, yPosition);
     } else {
       // Add grouped receipt sections
       for (const [groupKey, groupReceipts] of Object.entries(groupedReceipts)) {

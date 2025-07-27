@@ -10,6 +10,7 @@ const Exports = () => {
     endDate: '',
     includeMatched: true,
     includeUnmatched: true,
+    includeOCRData: true,
     title: '',
     groupBy: 'date'
   });
@@ -50,6 +51,13 @@ const Exports = () => {
   const generateReport = async () => {
     if (!reportType || !format) {
       toast.error('Please select report type and format');
+      return;
+    }
+
+    // Validate match status options for transactions and receipts
+    if ((reportType === 'transactions' || reportType === 'receipts') && 
+        !options.includeMatched && !options.includeUnmatched) {
+      toast.error('Please select at least one option: Matched or Unmatched');
       return;
     }
 
@@ -114,6 +122,7 @@ const Exports = () => {
       endDate: '',
       includeMatched: true,
       includeUnmatched: true,
+      includeOCRData: true,
       title: '',
       groupBy: 'date'
     });
@@ -267,19 +276,58 @@ const Exports = () => {
 
               {/* Receipt-specific options */}
               {reportType === 'receipts' && (
-                <div className="option-group">
-                  <label htmlFor="groupBy">Group Receipts By</label>
-                  <select
-                    id="groupBy"
-                    value={options.groupBy}
-                    onChange={(e) => handleOptionChange('groupBy', e.target.value)}
-                    className="form-select"
-                  >
-                    <option value="date">Date</option>
-                    <option value="merchant">Merchant</option>
-                    <option value="amount">Amount Range</option>
-                  </select>
-                </div>
+                <>
+                  <div className="option-group">
+                    <label htmlFor="groupBy">Group Receipts By</label>
+                    <select
+                      id="groupBy"
+                      value={options.groupBy}
+                      onChange={(e) => handleOptionChange('groupBy', e.target.value)}
+                      className="form-select"
+                    >
+                      <option value="date">Date</option>
+                      <option value="merchant">Merchant</option>
+                      <option value="amount">Amount Range</option>
+                    </select>
+                  </div>
+
+                  <div className="option-group">
+                    <label>Include Receipts</label>
+                    <div className="checkbox-group">
+                      <label className="checkbox-label">
+                        <input
+                          type="checkbox"
+                          checked={options.includeMatched}
+                          onChange={(e) => handleOptionChange('includeMatched', e.target.checked)}
+                        />
+                        Matched Receipts
+                      </label>
+                      <label className="checkbox-label">
+                        <input
+                          type="checkbox"
+                          checked={options.includeUnmatched}
+                          onChange={(e) => handleOptionChange('includeUnmatched', e.target.checked)}
+                        />
+                        Unmatched Receipts
+                      </label>
+                    </div>
+                  </div>
+
+                  {format === 'excel' && (
+                    <div className="option-group">
+                      <div className="checkbox-group">
+                        <label className="checkbox-label">
+                          <input
+                            type="checkbox"
+                            checked={options.includeOCRData}
+                            onChange={(e) => handleOptionChange('includeOCRData', e.target.checked)}
+                          />
+                          Include OCR Extracted Data
+                        </label>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
 
@@ -325,6 +373,9 @@ const Exports = () => {
             </div>
             <div className="tip">
               <strong>Excel Reports:</strong> Ideal for data analysis, filtering, and further processing.
+            </div>
+            <div className="tip">
+              <strong>Match Status Filtering:</strong> Choose to include matched items, unmatched items, or both in your reports.
             </div>
             <div className="tip">
               <strong>Date Ranges:</strong> Smaller date ranges generate faster. For large datasets, consider monthly exports.

@@ -58,8 +58,20 @@ class ExcelService {
   async generateReceiptsExport(receipts, options = {}) {
     const {
       companyName = 'Company',
-      includeOCRData = true
+      includeOCRData = true,
+      includeMatched = true,
+      includeUnmatched = true
     } = options;
+
+    // Generate subtitle based on match status filtering
+    let statusFilter = '';
+    if (includeMatched && !includeUnmatched) {
+      statusFilter = ' - Matched Receipts Only';
+    } else if (!includeMatched && includeUnmatched) {
+      statusFilter = ' - Unmatched Receipts Only';
+    } else {
+      statusFilter = ' - All Receipts';
+    }
 
     const workbook = new ExcelJS.Workbook();
     
@@ -68,19 +80,19 @@ class ExcelService {
 
     // Receipts Summary
     const summarySheet = workbook.addWorksheet('Summary');
-    this.setupReceiptsSummarySheet(summarySheet, receipts, companyName);
+    this.setupReceiptsSummarySheet(summarySheet, receipts, companyName, statusFilter);
 
     // Receipts Detail
     const detailSheet = workbook.addWorksheet('Receipts');
-    this.setupReceiptsSheet(detailSheet, receipts, { includeOCRData });
+    this.setupReceiptsSheet(detailSheet, receipts, { includeOCRData, statusFilter });
 
     // Receipts by Merchant
     const merchantSheet = workbook.addWorksheet('By Merchant');
-    this.setupReceiptsByMerchantSheet(merchantSheet, receipts);
+    this.setupReceiptsByMerchantSheet(merchantSheet, receipts, statusFilter);
 
     // Receipts by Month
     const monthlySheet = workbook.addWorksheet('By Month');
-    this.setupReceiptsByMonthSheet(monthlySheet, receipts);
+    this.setupReceiptsByMonthSheet(monthlySheet, receipts, statusFilter);
 
     return workbook;
   }
@@ -295,11 +307,11 @@ class ExcelService {
   }
 
   setupReceiptsSheet(sheet, receipts, options = {}) {
-    const { includeOCRData = true } = options;
+    const { includeOCRData = true, statusFilter = '' } = options;
 
     // Header
     sheet.mergeCells('A1:I1');
-    sheet.getCell('A1').value = 'Receipt Details';
+    sheet.getCell('A1').value = `Receipt Details${statusFilter}`;
     sheet.getCell('A1').style = this.getHeaderStyle();
 
     // Column headers
@@ -454,10 +466,10 @@ class ExcelService {
     });
   }
 
-  setupReceiptsSummarySheet(sheet, receipts, companyName) {
+  setupReceiptsSummarySheet(sheet, receipts, companyName, statusFilter) {
     // Header
     sheet.mergeCells('A1:D1');
-    sheet.getCell('A1').value = `${companyName} - Receipt Summary`;
+    sheet.getCell('A1').value = `${companyName} - Receipt Summary${statusFilter}`;
     sheet.getCell('A1').style = this.getHeaderStyle();
 
     // Calculate receipt statistics
@@ -484,10 +496,10 @@ class ExcelService {
     ];
   }
 
-  setupReceiptsByMerchantSheet(sheet, receipts) {
+  setupReceiptsByMerchantSheet(sheet, receipts, statusFilter) {
     // Header
     sheet.mergeCells('A1:D1');
-    sheet.getCell('A1').value = 'Receipts by Merchant';
+    sheet.getCell('A1').value = `Receipts by Merchant${statusFilter}`;
     sheet.getCell('A1').style = this.getHeaderStyle();
 
     // Group by merchant
@@ -526,10 +538,10 @@ class ExcelService {
     ];
   }
 
-  setupReceiptsByMonthSheet(sheet, receipts) {
+  setupReceiptsByMonthSheet(sheet, receipts, statusFilter) {
     // Header
     sheet.mergeCells('A1:D1');
-    sheet.getCell('A1').value = 'Receipts by Month';
+    sheet.getCell('A1').value = `Receipts by Month${statusFilter}`;
     sheet.getCell('A1').style = this.getHeaderStyle();
 
     // Group by month

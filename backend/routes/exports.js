@@ -33,7 +33,9 @@ router.get('/options', (req, res) => {
         options: {
           dateRange: true,
           groupBy: ['date', 'merchant', 'amount'],
-          includeOCRData: true
+          includeOCRData: true,
+          includeMatched: true,
+          includeUnmatched: true
         }
       },
       {
@@ -263,22 +265,34 @@ router.post('/pdf/receipts', async (req, res) => {
       startDate,
       endDate,
       groupBy = 'date',
-      title = 'Receipt Gallery Report'
+      title = 'Receipt Gallery Report',
+      includeMatched = true,
+      includeUnmatched = true
     } = req.body;
 
     if (!req.companyId) {
       return res.status(400).json({ error: 'Company context required' });
     }
 
-    // Build query with company scoping and date filtering
+    // Build query with company scoping, date filtering, and match status filtering
     let query = `
       SELECT r.*, m.match_status 
       FROM receipts r
-      LEFT JOIN matches m ON r.id = m.receipt_id
+      LEFT JOIN matches m ON r.id = m.receipt_id AND m.match_status = 'confirmed'
       WHERE r.company_id = ?
     `;
     
     const params = [req.companyId];
+
+    // Apply match status filtering
+    if (includeMatched && !includeUnmatched) {
+      // Only matched receipts
+      query += ' AND m.id IS NOT NULL';
+    } else if (!includeMatched && includeUnmatched) {
+      // Only unmatched receipts
+      query += ' AND m.id IS NULL';
+    }
+    // If both includeMatched and includeUnmatched are true, include all (no additional filter)
 
     // Date filtering with flexible date handling
     if (startDate) {
@@ -317,7 +331,9 @@ router.post('/pdf/receipts', async (req, res) => {
         const pdfDoc = await pdfService.generateReceiptGalleryReport(receipts, {
           companyName: req.user.currentCompany.name,
           title,
-          groupBy
+          groupBy,
+          includeMatched,
+          includeUnmatched
         });
 
         // Set response headers for PDF download
@@ -353,22 +369,34 @@ router.post('/excel/receipts', async (req, res) => {
     const {
       startDate,
       endDate,
-      includeOCRData = true
+      includeOCRData = true,
+      includeMatched = true,
+      includeUnmatched = true
     } = req.body;
 
     if (!req.companyId) {
       return res.status(400).json({ error: 'Company context required' });
     }
 
-    // Build query with company scoping
+    // Build query with company scoping, date filtering, and match status filtering
     let query = `
       SELECT r.*, m.match_status 
       FROM receipts r
-      LEFT JOIN matches m ON r.id = m.receipt_id
+      LEFT JOIN matches m ON r.id = m.receipt_id AND m.match_status = 'confirmed'
       WHERE r.company_id = ?
     `;
     
     const params = [req.companyId];
+
+    // Apply match status filtering
+    if (includeMatched && !includeUnmatched) {
+      // Only matched receipts
+      query += ' AND m.id IS NOT NULL';
+    } else if (!includeMatched && includeUnmatched) {
+      // Only unmatched receipts
+      query += ' AND m.id IS NULL';
+    }
+    // If both includeMatched and includeUnmatched are true, include all (no additional filter)
 
     // Date filtering with flexible date handling
     if (startDate) {
@@ -406,7 +434,9 @@ router.post('/excel/receipts', async (req, res) => {
       try {
         const workbook = await excelService.generateReceiptsExport(receipts, {
           companyName: req.user.currentCompany.name,
-          includeOCRData
+          includeOCRData,
+          includeMatched,
+          includeUnmatched
         });
 
         // Set response headers for Excel download
