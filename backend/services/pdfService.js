@@ -2,6 +2,7 @@ const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
 const moment = require('moment');
+const { PDFDocument: PDFLib, rgb } = require('pdf-lib');
 
 class PDFService {
   constructor() {
@@ -85,7 +86,154 @@ class PDFService {
     // Footer
     this.addFooter(doc);
 
+    // If there are PDF receipts to embed, merge them into the final document
+    if (doc._pdfReceiptsToEmbed && doc._pdfReceiptsToEmbed.length > 0) {
+      console.log(`Embedding ${doc._pdfReceiptsToEmbed.length} PDF receipts into the report`);
+      return await this.embedPdfReceipts(doc, doc._pdfReceiptsToEmbed);
+    }
+
     return doc;
+  }
+
+  async embedPdfReceipts(mainDoc, pdfReceipts) {
+    try {
+      // End the main document and get its buffer
+      mainDoc.end();
+      
+      // Collect the main document buffer
+      const mainDocBuffer = await new Promise((resolve, reject) => {
+        const chunks = [];
+        mainDoc.on('data', chunk => chunks.push(chunk));
+        mainDoc.on('end', () => resolve(Buffer.concat(chunks)));
+        mainDoc.on('error', reject);
+      });
+
+      // Create a new PDF document using pdf-lib for merging
+      const mergedPdf = await PDFLib.create();
+      
+      // Add pages from the main document
+      const mainPdfDoc = await PDFLib.load(mainDocBuffer);
+      const mainPages = await mergedPdf.copyPages(mainPdfDoc, mainPdfDoc.getPageIndices());
+      mainPages.forEach(page => mergedPdf.addPage(page));
+
+      // Add a separator page before PDF receipts
+      if (pdfReceipts.length > 0) {
+        const separatorPage = mergedPdf.addPage();
+        const { width, height } = separatorPage.getSize();
+        
+        separatorPage.drawText('Original Receipt Documents', {
+          x: 50,
+          y: height - 100,
+          size: 20,
+          color: rgb(0.2, 0.2, 0.2)
+        });
+        
+        separatorPage.drawText('The following pages contain the original PDF receipts referenced in this report:', {
+          x: 50,
+          y: height - 140,
+          size: 12,
+          color: rgb(0.4, 0.4, 0.4)
+        });
+
+        // List the PDF receipts that will be included
+        let listY = height - 180;
+        pdfReceipts.forEach((pdfReceipt, index) => {
+          separatorPage.drawText(`${index + 1}. ${pdfReceipt.filename}`, {
+            x: 70,
+            y: listY,
+            size: 10,
+            color: rgb(0.3, 0.3, 0.3)
+          });
+          listY -= 20;
+        });
+      }
+
+      // Add each PDF receipt's pages
+      for (const pdfReceipt of pdfReceipts) {
+        try {
+          if (fs.existsSync(pdfReceipt.filePath)) {
+            console.log(`Embedding PDF receipt: ${pdfReceipt.filename}`);
+            
+            const pdfBuffer = fs.readFileSync(pdfReceipt.filePath);
+            const receiptPdf = await PDFLib.load(pdfBuffer);
+            const receiptPages = await mergedPdf.copyPages(receiptPdf, receiptPdf.getPageIndices());
+            
+            // Add a title page for this receipt
+            const titlePage = mergedPdf.addPage();
+            const { width, height } = titlePage.getSize();
+            
+            titlePage.drawText(`Receipt: ${pdfReceipt.filename}`, {
+              x: 50,
+              y: height - 100,
+              size: 16,
+              color: rgb(0.2, 0.2, 0.2)
+            });
+
+            // Add OCR extracted data if available
+            if (pdfReceipt.receiptData.extracted_merchant) {
+              titlePage.drawText(`Merchant: ${pdfReceipt.receiptData.extracted_merchant}`, {
+                x: 50,
+                y: height - 140,
+                size: 12,
+                color: rgb(0.3, 0.3, 0.3)
+              });
+            }
+
+            if (pdfReceipt.receiptData.extracted_amount) {
+              titlePage.drawText(`Amount: $${parseFloat(pdfReceipt.receiptData.extracted_amount).toFixed(2)}`, {
+                x: 50,
+                y: height - 160,
+                size: 12,
+                color: rgb(0.3, 0.3, 0.3)
+              });
+            }
+
+            if (pdfReceipt.receiptData.extracted_date) {
+              titlePage.drawText(`Date: ${pdfReceipt.receiptData.extracted_date}`, {
+                x: 50,
+                y: height - 180,
+                size: 12,
+                color: rgb(0.3, 0.3, 0.3)
+              });
+            }
+
+            titlePage.drawText('Original receipt pages follow:', {
+              x: 50,
+              y: height - 220,
+              size: 10,
+              color: rgb(0.4, 0.4, 0.4)
+            });
+            
+            // Add all pages from the receipt PDF
+            receiptPages.forEach(page => mergedPdf.addPage(page));
+            
+          } else {
+            console.error(`PDF receipt file not found: ${pdfReceipt.filePath}`);
+          }
+        } catch (pdfError) {
+          console.error(`Error embedding PDF receipt ${pdfReceipt.filename}:`, pdfError);
+        }
+      }
+
+      // Return the merged PDF as a buffer wrapped in a stream-like object
+      const mergedPdfBytes = await mergedPdf.save();
+      
+      // Create a readable stream from the buffer for compatibility with response.pipe()
+      const { Readable } = require('stream');
+      const pdfStream = new Readable({
+        read() {}
+      });
+      
+      pdfStream.push(mergedPdfBytes);
+      pdfStream.push(null); // End the stream
+
+      return pdfStream;
+
+    } catch (error) {
+      console.error('Error embedding PDF receipts:', error);
+      // Fallback to original document
+      return mainDoc;
+    }
   }
 
   // Generate Company Analytics Report
@@ -409,7 +557,7 @@ class PDFService {
         }
         
       } else if (fileExt === '.pdf') {
-        // Handle PDF files - show placeholder with note
+        // Handle PDF files - show placeholder and mark for embedding
         doc.fontSize(10)
            .fillColor(this.colors.text)
            .font('Helvetica-Bold')
@@ -421,16 +569,25 @@ class PDFService {
            .text(`File: ${receipt.original_filename}`, this.pageMargin + 30, yPosition + 15);
         
         // Add a border to indicate this is a placeholder
-        doc.rect(this.pageMargin + 30, yPosition + 35, 300, 80)
+        doc.rect(this.pageMargin + 30, yPosition + 35, 300, 60)
            .stroke('#e2e8f0');
            
         doc.fontSize(9)
            .fillColor('#4a5568')
-           .text('PDF Receipt Preview Not Available', this.pageMargin + 40, yPosition + 50)
-           .text('View original file for complete content', this.pageMargin + 40, yPosition + 65)
-           .text('OCR extracted data shown above', this.pageMargin + 40, yPosition + 80);
+           .text('Original PDF pages will be attached', this.pageMargin + 40, yPosition + 50)
+           .text('at the end of this report', this.pageMargin + 40, yPosition + 65);
         
-        return yPosition + 130;
+        // Store PDF path for later embedding (we'll collect these)
+        if (!doc._pdfReceiptsToEmbed) {
+          doc._pdfReceiptsToEmbed = [];
+        }
+        doc._pdfReceiptsToEmbed.push({
+          filePath: filePath,
+          filename: receipt.original_filename,
+          receiptData: receipt
+        });
+        
+        return yPosition + 110;
         
       } else {
         // Unknown file type

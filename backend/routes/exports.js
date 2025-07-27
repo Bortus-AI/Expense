@@ -325,9 +325,15 @@ router.post('/pdf/receipts', async (req, res) => {
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
 
-        // Pipe PDF to response
-        pdfDoc.pipe(res);
-        pdfDoc.end();
+        // Check if this is a stream (from PDF embedding) or PDFKit document
+        if (pdfDoc.end && typeof pdfDoc.end === 'function') {
+          // This is a PDFKit document
+          pdfDoc.pipe(res);
+          pdfDoc.end();
+        } else {
+          // This is a readable stream from PDF embedding
+          pdfDoc.pipe(res);
+        }
 
       } catch (pdfError) {
         console.error('PDF generation error:', pdfError);
