@@ -16,6 +16,7 @@ const transactionRoutes = require('./routes/transactions');
 const receiptRoutes = require('./routes/receipts');
 const matchRoutes = require('./routes/matches');
 const exportRoutes = require('./routes/exports');
+const analyticsRoutes = require('./routes/analytics');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -89,6 +90,7 @@ app.use('/api/transactions', transactionRoutes);
 app.use('/api/receipts', receiptRoutes);
 app.use('/api/matches', matchRoutes);
 app.use('/api/exports', exportRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 // Health check route
 app.get('/api/health', (req, res) => {

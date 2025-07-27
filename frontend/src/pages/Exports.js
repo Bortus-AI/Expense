@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { toast } from 'react-toastify';
-import { exportAPI } from '../services/api';
+import { exportAPI, analyticsAPI } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 
 const Exports = () => {
+  const { user } = useAuth();
   const [reportType, setReportType] = useState('transactions');
   const [format, setFormat] = useState('pdf');
   const [options, setOptions] = useState({
@@ -13,15 +15,24 @@ const Exports = () => {
     includeOCRData: true,
     maxPagesPerReceipt: '',
     title: '',
-    groupBy: 'date'
+    groupBy: 'date',
+    includeAnalytics: false,
+    includeCharts: false,
+    includeSummary: true,
+    includeDetails: true
   });
   const [loading, setLoading] = useState(false);
   const [exportOptions, setExportOptions] = useState(null);
+  const [analyticsData, setAnalyticsData] = useState(null);
+  const [previewData, setPreviewData] = useState(null);
 
   // Load export options on component mount
   useEffect(() => {
     fetchExportOptions();
-  }, []);
+    if (user?.currentRole === 'admin') {
+      fetchAnalyticsData();
+    }
+  }, [user?.currentRole]);
 
   const fetchExportOptions = async () => {
     try {
@@ -42,11 +53,42 @@ const Exports = () => {
     }
   };
 
+  const fetchAnalyticsData = async () => {
+    try {
+      const response = await analyticsAPI.getDashboard();
+      setAnalyticsData(response.data);
+    } catch (error) {
+      console.error('Error fetching analytics data:', error);
+    }
+  };
+
   const handleOptionChange = (key, value) => {
     setOptions(prev => ({
       ...prev,
       [key]: value
     }));
+  };
+
+  const generatePreview = async () => {
+    if (!reportType) {
+      toast.error('Please select a report type');
+      return;
+    }
+
+    try {
+      // Generate a small preview of the data
+      const previewOptions = {
+        ...options,
+        limit: 10,
+        preview: true
+      };
+
+      const response = await exportAPI.generatePreview(reportType, previewOptions);
+      setPreviewData(response.data);
+    } catch (error) {
+      console.error('Error generating preview:', error);
+      toast.error('Failed to generate preview');
+    }
   };
 
   const generateReport = async () => {
@@ -126,7 +168,11 @@ const Exports = () => {
       includeOCRData: true,
       maxPagesPerReceipt: '',
       title: '',
-      groupBy: 'date'
+      groupBy: 'date',
+      includeAnalytics: false,
+      includeCharts: false,
+      includeSummary: true,
+      includeDetails: true
     });
   };
 
@@ -136,14 +182,19 @@ const Exports = () => {
     <div className="exports-page">
       <div className="page-header">
         <h1>📊 Export Reports</h1>
-        <p>Generate PDF and Excel reports for your expense data</p>
+        <p>Generate comprehensive PDF and Excel reports for your expense data</p>
+        {user?.currentRole === 'admin' && (
+          <div className="text-sm text-gray">
+            Admin access: Full analytics and advanced reporting options available
+          </div>
+        )}
       </div>
 
       <div className="export-builder">
         <div className="card">
           <div className="card-header">
             <h2>Report Builder</h2>
-            <p>Configure your export settings</p>
+            <p>Configure your export settings and preview data</p>
           </div>
 
           <div className="export-form">
@@ -184,7 +235,7 @@ const Exports = () => {
                   <div className="format-content">
                     <span className="format-icon">📄</span>
                     <span>PDF Report</span>
-                    <small>Professional formatted document</small>
+                    <small>Professional formatted document with charts</small>
                   </div>
                 </label>
 
@@ -199,7 +250,7 @@ const Exports = () => {
                   <div className="format-content">
                     <span className="format-icon">📊</span>
                     <span>Excel Spreadsheet</span>
-                    <small>Data analysis and filtering</small>
+                    <small>Data analysis and filtering capabilities</small>
                   </div>
                 </label>
               </div>
@@ -251,6 +302,49 @@ const Exports = () => {
                 />
               </div>
 
+              {/* Admin-specific options */}
+              {user?.currentRole === 'admin' && (
+                <>
+                  <div className="option-group">
+                    <label>Report Content</label>
+                    <div className="checkbox-group">
+                      <label className="checkbox-label">
+                        <input
+                          type="checkbox"
+                          checked={options.includeAnalytics}
+                          onChange={(e) => handleOptionChange('includeAnalytics', e.target.checked)}
+                        />
+                        Include Analytics Dashboard
+                      </label>
+                      <label className="checkbox-label">
+                        <input
+                          type="checkbox"
+                          checked={options.includeCharts}
+                          onChange={(e) => handleOptionChange('includeCharts', e.target.checked)}
+                        />
+                        Include Charts & Graphs
+                      </label>
+                      <label className="checkbox-label">
+                        <input
+                          type="checkbox"
+                          checked={options.includeSummary}
+                          onChange={(e) => handleOptionChange('includeSummary', e.target.checked)}
+                        />
+                        Include Executive Summary
+                      </label>
+                      <label className="checkbox-label">
+                        <input
+                          type="checkbox"
+                          checked={options.includeDetails}
+                          onChange={(e) => handleOptionChange('includeDetails', e.target.checked)}
+                        />
+                        Include Detailed Data
+                      </label>
+                    </div>
+                  </div>
+                </>
+              )}
+
               {/* Transaction-specific options */}
               {reportType === 'transactions' && (
                 <div className="option-group">
@@ -290,6 +384,7 @@ const Exports = () => {
                       <option value="date">Date</option>
                       <option value="merchant">Merchant</option>
                       <option value="amount">Amount Range</option>
+                      <option value="status">Processing Status</option>
                     </select>
                   </div>
 
@@ -331,7 +426,7 @@ const Exports = () => {
                         <option value="5">First 5 pages</option>
                       </select>
                       <small className="text-gray">
-                        Limit pages from each PDF receipt to reduce report size. Your current report would be shorter with this setting.
+                        Limit pages from each PDF receipt to reduce report size.
                       </small>
                     </div>
                   )}
@@ -352,7 +447,87 @@ const Exports = () => {
                   )}
                 </>
               )}
+
+              {/* Analytics Report specific options */}
+              {reportType === 'analytics' && user?.currentRole === 'admin' && (
+                <>
+                  <div className="option-group">
+                    <label>Analytics Sections</label>
+                    <div className="checkbox-group">
+                      <label className="checkbox-label">
+                        <input
+                          type="checkbox"
+                          checked={options.includeSummary}
+                          onChange={(e) => handleOptionChange('includeSummary', e.target.checked)}
+                        />
+                        Financial Summary
+                      </label>
+                      <label className="checkbox-label">
+                        <input
+                          type="checkbox"
+                          checked={options.includeCharts}
+                          onChange={(e) => handleOptionChange('includeCharts', e.target.checked)}
+                        />
+                        Trend Analysis
+                      </label>
+                      <label className="checkbox-label">
+                        <input
+                          type="checkbox"
+                          checked={options.includeDetails}
+                          onChange={(e) => handleOptionChange('includeDetails', e.target.checked)}
+                        />
+                        User Activity
+                      </label>
+                      <label className="checkbox-label">
+                        <input
+                          type="checkbox"
+                          checked={options.includeAnalytics}
+                          onChange={(e) => handleOptionChange('includeAnalytics', e.target.checked)}
+                        />
+                        System Performance
+                      </label>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
+
+            {/* Preview Section */}
+            {user?.currentRole === 'admin' && (
+              <div className="form-section">
+                <h3>👁️ Data Preview</h3>
+                <div className="flex gap-2 mb-3">
+                  <button
+                    type="button"
+                    onClick={generatePreview}
+                    className="btn btn-secondary"
+                    disabled={loading}
+                  >
+                    🔍 Generate Preview
+                  </button>
+                </div>
+                
+                {previewData && (
+                  <div className="preview-container">
+                    <h4>Preview Data</h4>
+                    <div className="preview-stats">
+                      <div className="preview-stat">
+                        <span>Total Records:</span>
+                        <span className="font-bold">{previewData.totalRecords || 0}</span>
+                      </div>
+                      <div className="preview-stat">
+                        <span>Date Range:</span>
+                        <span className="font-bold">{previewData.dateRange || 'N/A'}</span>
+                      </div>
+                      <div className="preview-stat">
+                        <span>Estimated Size:</span>
+                        <span className="font-bold">{previewData.estimatedSize || 'N/A'}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Action Buttons */}
             <div className="form-actions">
@@ -385,6 +560,41 @@ const Exports = () => {
           </div>
         </div>
 
+        {/* Analytics Summary for Admin */}
+        {user?.currentRole === 'admin' && analyticsData && (
+          <div className="card">
+            <div className="card-header">
+              <h3>📈 Quick Analytics Summary</h3>
+            </div>
+            <div className="grid grid-4">
+              <div className="text-center">
+                <div className="text-lg font-bold text-danger">
+                  ${analyticsData.financial?.totalExpenses?.toLocaleString() || 0}
+                </div>
+                <div className="text-sm text-gray">Total Expenses</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-bold text-success">
+                  {analyticsData.processing?.processingRate || 0}%
+                </div>
+                <div className="text-sm text-gray">Processing Rate</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-bold text-info">
+                  {analyticsData.processing?.matchRate || 0}%
+                </div>
+                <div className="text-sm text-gray">Match Rate</div>
+              </div>
+              <div className="text-center">
+                <div className="text-lg font-bold">
+                  {analyticsData.processing?.totalReceipts || 0}
+                </div>
+                <div className="text-sm text-gray">Total Receipts</div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Export Tips */}
         <div className="card export-tips">
           <div className="card-header">
@@ -392,10 +602,13 @@ const Exports = () => {
           </div>
           <div className="tips-content">
             <div className="tip">
-              <strong>PDF Reports:</strong> Best for sharing with stakeholders, presentations, and archival purposes.
+              <strong>PDF Reports:</strong> Best for sharing with stakeholders, presentations, and archival purposes. Includes charts and professional formatting.
             </div>
             <div className="tip">
-              <strong>Excel Reports:</strong> Ideal for data analysis, filtering, and further processing.
+              <strong>Excel Reports:</strong> Ideal for data analysis, filtering, and further processing. Includes multiple sheets and pivot tables.
+            </div>
+            <div className="tip">
+              <strong>Analytics Reports:</strong> Comprehensive dashboards with financial summaries, trend analysis, and performance metrics.
             </div>
             <div className="tip">
               <strong>Match Status Filtering:</strong> Choose to include matched items, unmatched items, or both in your reports.
@@ -407,7 +620,7 @@ const Exports = () => {
               <strong>Date Ranges:</strong> Smaller date ranges generate faster. For large datasets, consider monthly exports.
             </div>
             <div className="tip">
-              <strong>File Sizes:</strong> Reports with many receipts or transactions may take longer to generate.
+              <strong>Admin Features:</strong> Admin users can access advanced analytics, system performance metrics, and comprehensive reporting options.
             </div>
           </div>
         </div>

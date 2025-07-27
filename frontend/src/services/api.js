@@ -131,12 +131,21 @@ export const exportAPI = {
   generateExcel: (reportType, data) => 
     api.post(`/exports/excel/${reportType}`, data, {
       responseType: 'blob'
-    })
+    }),
+
+  generatePreview: (reportType, data) => 
+    api.post(`/exports/preview/${reportType}`, data)
 };
 
 // Health check
 export const healthCheck = () => 
   api.get('/health');
+
+// Analytics API
+export const analyticsAPI = {
+  getDashboard: () => api.get('/analytics/dashboard'),
+  exportData: (params = {}) => api.get('/analytics/export', { params })
+};
 
 // Export both as named export and default export
 export { api };
