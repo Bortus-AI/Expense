@@ -14,6 +14,36 @@ router.use(getUserCompanies);
 router.use(requireCompanyAccess);
 router.use(addUserTracking);
 
+// Helper function to find user by first and last name within the company
+const findUserByName = async (firstName, lastName, companyId) => {
+  return new Promise((resolve, reject) => {
+    if (!firstName || !lastName) {
+      resolve(null);
+      return;
+    }
+
+    const query = `
+      SELECT u.id, u.first_name, u.last_name, u.email
+      FROM users u
+      JOIN user_companies uc ON u.id = uc.user_id
+      WHERE uc.company_id = ? 
+      AND uc.status = 'active'
+      AND LOWER(TRIM(u.first_name)) = LOWER(TRIM(?))
+      AND LOWER(TRIM(u.last_name)) = LOWER(TRIM(?))
+      LIMIT 1
+    `;
+
+    db.get(query, [companyId, firstName, lastName], (err, user) => {
+      if (err) {
+        console.error('Error finding user by name:', err);
+        reject(err);
+      } else {
+        resolve(user);
+      }
+    });
+  });
+};
+
 // Configure multer for CSV file uploads
 const csvStorage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -166,8 +196,8 @@ router.post('/import', csvUpload.single('csvFile'), (req, res) => {
         console.log('CSV columns found:', Object.keys(row));
         console.log('Sample row data:', row);
       }
-      // Chase CSV format: Transaction Date, Description, Category, Type, Amount, Memo
-      // Additional fields: Post Date, Transaction ID (if available)
+      // Enhanced CSV format: Transaction Date, Description, Category, Type, Amount, Memo
+      // Additional fields: Post Date, Transaction ID, First Name, Last Name (for user matching)
       // Parse date without timezone conversion to avoid day shifts
       let transactionDate;
       try {
@@ -248,15 +278,54 @@ router.post('/import', csvUpload.single('csvFile'), (req, res) => {
         row['Local Tax'] || 
         '' 
       ) || null;
+
+      // Extract user names for matching - try multiple column name variants
+      const firstName = (
+        row['First Name'] || 
+        row['FirstName'] || 
+        row['first_name'] || 
+        row['Employee First Name'] || 
+        row['User First Name'] || 
+        row['Name'] || // Could be "John Doe" format
+        ''
+      ).trim();
       
-      // Debug: Log Transaction ID detection for first few rows
+      const lastName = (
+        row['Last Name'] || 
+        row['LastName'] || 
+        row['last_name'] || 
+        row['Employee Last Name'] || 
+        row['User Last Name'] || 
+        row['Surname'] ||
+        ''
+      ).trim();
+
+      // Handle "Name" column that might contain "First Last" format
+      let finalFirstName = firstName;
+      let finalLastName = lastName;
+      if (!firstName && !lastName && row['Name']) {
+        const nameParts = row['Name'].trim().split(/\s+/);
+        if (nameParts.length >= 2) {
+          finalFirstName = nameParts[0];
+          finalLastName = nameParts.slice(1).join(' '); // Handle middle names
+        }
+      }
+      
+      // Debug: Log user name detection for first few rows
       if (transactions.length < 3) {
-        console.log(`Row ${transactions.length + 1} Transaction ID search:`, {
+        console.log(`Row ${transactions.length + 1} processing:`, {
           'Available columns': Object.keys(row),
           'Transaction ID': row['Transaction ID'],
           'Reference Number': row['Reference Number'], 
           'ID': row['ID'],
-          'Final selected': externalTransactionId,
+          'Final Transaction ID': externalTransactionId,
+          'Name columns': {
+            'First Name': row['First Name'],
+            'Last Name': row['Last Name'],
+            'Name': row['Name'],
+            'Final firstName': finalFirstName,
+            'Final lastName': finalLastName
+          },
           'Sales Tax sources': {
             'Tax Amount': row['Tax Amount'],
             'Sales Tax': row['Sales Tax'],
@@ -275,18 +344,91 @@ router.post('/import', csvUpload.single('csvFile'), (req, res) => {
         category: category,
         chase_transaction_id: chaseTransactionId,
         external_transaction_id: externalTransactionId,
-        sales_tax: salesTax
+        sales_tax: salesTax,
+        first_name: finalFirstName,
+        last_name: finalLastName
       });
     })
-    .on('end', () => {
-      // Insert transactions into database
+    .on('end', async () => {
+      console.log(`\n=== PROCESSING ${transactions.length} TRANSACTIONS FOR USER MATCHING ===`);
+      
+      // Process transactions with user matching
+      const processedTransactions = [];
+      const userMatchResults = {
+        matched: 0,
+        unmatched: 0,
+        adminAssigned: 0,
+        details: []
+      };
+
+      for (let i = 0; i < transactions.length; i++) {
+        const transaction = transactions[i];
+        let assignedUserId = req.userId; // Default to admin user
+        let assignedUserInfo = `Admin (${req.user.email})`;
+        let matchStatus = 'admin_default';
+
+        // Try to match user by name if names are provided
+        if (transaction.first_name && transaction.last_name) {
+          try {
+            const matchedUser = await findUserByName(transaction.first_name, transaction.last_name, req.companyId);
+            
+            if (matchedUser) {
+              assignedUserId = matchedUser.id;
+              assignedUserInfo = `${matchedUser.first_name} ${matchedUser.last_name} (${matchedUser.email})`;
+              matchStatus = 'name_matched';
+              userMatchResults.matched++;
+              
+              console.log(`✅ Transaction ${i + 1}: Matched "${transaction.first_name} ${transaction.last_name}" → User ID ${matchedUser.id} (${matchedUser.email})`);
+            } else {
+              userMatchResults.unmatched++;
+              matchStatus = 'no_match_found';
+              console.log(`❌ Transaction ${i + 1}: No match found for "${transaction.first_name} ${transaction.last_name}" → Assigned to Admin`);
+            }
+          } catch (error) {
+            console.error(`❌ Transaction ${i + 1}: Error matching user "${transaction.first_name} ${transaction.last_name}":`, error);
+            userMatchResults.unmatched++;
+            matchStatus = 'match_error';
+          }
+        } else {
+          userMatchResults.adminAssigned++;
+          matchStatus = 'no_names_provided';
+          if (transactions.length <= 10) { // Only log for small imports to avoid spam
+            console.log(`ℹ️  Transaction ${i + 1}: No names provided → Assigned to Admin`);
+          }
+        }
+
+        // Track assignment details
+        userMatchResults.details.push({
+          row: i + 1,
+          description: transaction.description.substring(0, 50),
+          providedName: transaction.first_name && transaction.last_name ? 
+            `${transaction.first_name} ${transaction.last_name}` : 'None',
+          assignedTo: assignedUserInfo,
+          status: matchStatus
+        });
+
+        processedTransactions.push({
+          ...transaction,
+          assignedUserId,
+          assignedUserInfo,
+          matchStatus
+        });
+      }
+
+      console.log(`\n📊 USER MATCHING SUMMARY:`);
+      console.log(`   • Successfully matched: ${userMatchResults.matched}`);
+      console.log(`   • No match found: ${userMatchResults.unmatched}`);
+      console.log(`   • Assigned to admin: ${userMatchResults.adminAssigned}`);
+      console.log(`   • Total processed: ${transactions.length}\n`);
+
+      // Insert transactions into database with user assignments
       const stmt = db.prepare(`
         INSERT OR IGNORE INTO transactions 
         (transaction_date, description, amount, category, chase_transaction_id, external_transaction_id, sales_tax, company_id, created_by, updated_by)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
-      transactions.forEach((transaction) => {
+      processedTransactions.forEach((transaction) => {
         stmt.run([
           transaction.transaction_date,
           transaction.description,
@@ -295,9 +437,9 @@ router.post('/import', csvUpload.single('csvFile'), (req, res) => {
           transaction.chase_transaction_id,
           transaction.external_transaction_id,
           transaction.sales_tax,
-          req.companyId,  // Add company_id
-          req.userId,     // Add created_by  
-          req.userId      // Add updated_by
+          req.companyId,                    // company_id
+          transaction.assignedUserId,       // created_by (matched user or admin)
+          req.userId                        // updated_by (always the admin who imported)
         ], function(err) {
           if (err) {
             console.error('Error inserting transaction:', err);
@@ -321,10 +463,16 @@ router.post('/import', csvUpload.single('csvFile'), (req, res) => {
         fs.unlinkSync(req.file.path);
 
         res.json({
-          message: 'Import completed',
+          message: 'Import completed with user matching',
           imported: importCount,
           skipped: skipCount,
-          total: transactions.length
+          total: transactions.length,
+          userMatching: {
+            matched: userMatchResults.matched,
+            unmatched: userMatchResults.unmatched,
+            adminAssigned: userMatchResults.adminAssigned,
+            details: userMatchResults.details.slice(0, 20) // Limit details to first 20 for response size
+          }
         });
       });
     })

@@ -112,11 +112,12 @@ const findPotentialMatches = (receipt, transactions) => {
 
 // Get all matches
 router.get('/', (req, res) => {
-  // If user is not admin, only show matches for their own transactions/receipts
+  // If user is not admin, show matches where they own either the transaction or receipt
   let whereClause = 'WHERE t.company_id = ? AND r.company_id = ?';
   let queryParams = [req.companyId, req.companyId];
 
   if (req.user && req.user.currentRole !== 'admin') {
+    // Show matches where user created either the transaction OR the receipt
     whereClause += ' AND (t.created_by = ? OR r.created_by = ?)';
     queryParams.push(req.user.id, req.user.id);
   }
@@ -142,11 +143,12 @@ router.get('/', (req, res) => {
 
 // Get pending matches (not confirmed by user)
 router.get('/pending', (req, res) => {
-  // If user is not admin, only show pending matches for their own transactions/receipts
+  // If user is not admin, show pending matches where they own either the transaction or receipt
   let whereClause = 'WHERE m.user_confirmed = FALSE AND t.company_id = ? AND r.company_id = ?';
   let queryParams = [req.companyId, req.companyId];
 
   if (req.user && req.user.currentRole !== 'admin') {
+    // Show matches where user created either the transaction OR the receipt
     whereClause += ' AND (t.created_by = ? OR r.created_by = ?)';
     queryParams.push(req.user.id, req.user.id);
   }
@@ -172,31 +174,59 @@ router.get('/pending', (req, res) => {
 
 // Find matches for a specific receipt
 router.post('/find/:receiptId', (req, res) => {
-  // Get receipt details
-  db.get('SELECT * FROM receipts WHERE id = ?', [req.params.receiptId], (err, receipt) => {
+  const receiptId = req.params.receiptId;
+
+  // Get receipt details with company check
+  const receiptQuery = `
+    SELECT * FROM receipts 
+    WHERE id = ? AND company_id = ?
+    ${req.user && req.user.currentRole !== 'admin' ? 'AND created_by = ?' : ''}
+  `;
+  
+  const receiptParams = [receiptId, req.companyId];
+  if (req.user && req.user.currentRole !== 'admin') {
+    receiptParams.push(req.user.id);
+  }
+
+  db.get(receiptQuery, receiptParams, (err, receipt) => {
     if (err) {
       return res.status(500).json({ error: err.message });
     }
     if (!receipt) {
-      return res.status(404).json({ error: 'Receipt not found' });
+      return res.status(404).json({ error: 'Receipt not found or access denied' });
     }
 
-    // Get unmatched transactions (transactions without confirmed matches)
+    // Get unmatched transactions with proper filtering
+    let transactionFilter = 'WHERE t.company_id = ?';
+    let transactionParams = [req.companyId];
+
+    if (req.user && req.user.currentRole !== 'admin') {
+      transactionFilter += ' AND t.created_by = ?';
+      transactionParams.push(req.user.id);
+    }
+
     const transactionQuery = `
       SELECT t.* FROM transactions t
-      WHERE t.id NOT IN (
+      ${transactionFilter}
+      AND t.id NOT IN (
         SELECT transaction_id FROM matches WHERE user_confirmed = 1
       )
       ORDER BY t.transaction_date DESC
       LIMIT 100
     `;
 
-    db.all(transactionQuery, [], (err, transactions) => {
+    console.log('Finding matches for receipt:', receiptId);
+    console.log('Transaction query:', transactionQuery);
+    console.log('Transaction params:', transactionParams);
+
+    db.all(transactionQuery, transactionParams, (err, transactions) => {
       if (err) {
         return res.status(500).json({ error: err.message });
       }
 
+      console.log(`Found ${transactions.length} transactions to match against`);
       const potentialMatches = findPotentialMatches(receipt, transactions);
+      console.log(`Found ${potentialMatches.length} potential matches`);
       
       res.json({
         receipt,
@@ -294,39 +324,81 @@ router.delete('/:id', (req, res) => {
 router.post('/auto-match', (req, res) => {
   const confidenceThreshold = req.body.threshold || 70;
 
-  // Get all unmatched receipts
+  console.log('=== AUTO-MATCH DEBUG ===');
+  console.log('User:', {
+    id: req.user?.id,
+    email: req.user?.email,
+    currentRole: req.user?.currentRole,
+    companyId: req.companyId
+  });
+  console.log('Confidence threshold:', confidenceThreshold);
+
+  // Apply the same filtering as other endpoints
+  let receiptFilter = 'WHERE r.company_id = ?';
+  let transactionFilter = 'WHERE t.company_id = ?';
+  let receiptParams = [req.companyId];
+  let transactionParams = [req.companyId];
+
+  // If user is not admin, only match their own data
+  if (req.user && req.user.currentRole !== 'admin') {
+    console.log('Applying user-level filtering for auto-match');
+    receiptFilter += ' AND r.created_by = ?';
+    transactionFilter += ' AND t.created_by = ?';
+    receiptParams.push(req.user.id);
+    transactionParams.push(req.user.id);
+  } else {
+    console.log('Admin user - auto-matching all company data');
+  }
+
+  // Get unmatched receipts with filtering
   const receiptQuery = `
     SELECT * FROM receipts r
-    WHERE r.id NOT IN (
+    ${receiptFilter}
+    AND r.id NOT IN (
       SELECT receipt_id FROM matches WHERE user_confirmed = 1
     )
     AND r.processing_status = 'completed'
     AND r.extracted_amount IS NOT NULL
   `;
 
-  db.all(receiptQuery, [], (err, receipts) => {
+  console.log('Receipt query:', receiptQuery);
+  console.log('Receipt params:', receiptParams);
+
+  db.all(receiptQuery, receiptParams, (err, receipts) => {
     if (err) {
+      console.error('Error fetching receipts for auto-match:', err);
       return res.status(500).json({ error: err.message });
     }
 
-    // Get unmatched transactions
+    console.log(`Found ${receipts.length} receipts for auto-matching`);
+
+    // Get unmatched transactions with filtering
     const transactionQuery = `
       SELECT t.* FROM transactions t
-      WHERE t.id NOT IN (
+      ${transactionFilter}
+      AND t.id NOT IN (
         SELECT transaction_id FROM matches WHERE user_confirmed = 1
       )
     `;
 
-    db.all(transactionQuery, [], (err, transactions) => {
+    console.log('Transaction query:', transactionQuery);
+    console.log('Transaction params:', transactionParams);
+
+    db.all(transactionQuery, transactionParams, (err, transactions) => {
       if (err) {
+        console.error('Error fetching transactions for auto-match:', err);
         return res.status(500).json({ error: err.message });
       }
 
+      console.log(`Found ${transactions.length} transactions for auto-matching`);
+
       let autoMatched = 0;
+      let matchDetails = [];
+
       const stmt = db.prepare(`
         INSERT OR REPLACE INTO matches 
-        (transaction_id, receipt_id, match_confidence, match_status, user_confirmed)
-        VALUES (?, ?, ?, 'auto_matched', 0)
+        (transaction_id, receipt_id, match_confidence, match_status, user_confirmed, created_by, updated_by)
+        VALUES (?, ?, ?, 'auto_matched', 0, ?, ?)
       `);
 
       receipts.forEach(receipt => {
@@ -334,13 +406,27 @@ router.post('/auto-match', (req, res) => {
         
         // Auto-match if confidence is high enough
         if (matches.length > 0 && matches[0].confidence >= confidenceThreshold) {
+          const bestMatch = matches[0];
+          console.log(`Auto-matching receipt ${receipt.id} with transaction ${bestMatch.transaction.id} (confidence: ${bestMatch.confidence}%)`);
+          
           stmt.run([
-            matches[0].transaction.id,
+            bestMatch.transaction.id,
             receipt.id,
-            matches[0].confidence
+            bestMatch.confidence,
+            req.user.id, // created_by
+            req.user.id  // updated_by
           ], (err) => {
             if (!err) {
               autoMatched++;
+              matchDetails.push({
+                receiptId: receipt.id,
+                transactionId: bestMatch.transaction.id,
+                confidence: bestMatch.confidence,
+                receiptFile: receipt.original_filename,
+                transactionDesc: bestMatch.transaction.description
+              });
+            } else {
+              console.error('Error creating auto-match:', err);
             }
           });
         }
@@ -348,14 +434,20 @@ router.post('/auto-match', (req, res) => {
 
       stmt.finalize((err) => {
         if (err) {
+          console.error('Error finalizing auto-match:', err);
           return res.status(500).json({ error: 'Error completing auto-match' });
         }
+        
+        console.log(`Auto-match completed: ${autoMatched} matches created`);
+        console.log('Match details:', matchDetails);
         
         res.json({
           message: 'Auto-matching completed',
           matched: autoMatched,
           totalReceipts: receipts.length,
-          threshold: confidenceThreshold
+          totalTransactions: transactions.length,
+          threshold: confidenceThreshold,
+          details: matchDetails
         });
       });
     });
@@ -364,28 +456,233 @@ router.post('/auto-match', (req, res) => {
 
 // Get match statistics
 router.get('/stats', (req, res) => {
+  console.log('=== MATCH STATS DEBUG ===');
+  console.log('User:', {
+    id: req.user?.id,
+    email: req.user?.email,
+    currentRole: req.user?.currentRole,
+    currentCompany: req.user?.currentCompany?.name,
+    companyId: req.companyId
+  });
+
+  // Apply the same filtering logic as other match endpoints
+  let matchesFilter = 'WHERE t.company_id = ? AND r.company_id = ?';
+  let receiptsFilter = 'WHERE r.company_id = ?';
+  let transactionsFilter = 'WHERE t.company_id = ?';
+  let queryParams = [req.companyId, req.companyId];
+  let receiptsParams = [req.companyId];
+  let transactionsParams = [req.companyId];
+
+  // If user is not admin, only show their own data
+  if (req.user && req.user.currentRole !== 'admin') {
+    console.log('Applying user-level filtering (not admin)');
+    // Show matches where user created either the transaction OR the receipt
+    matchesFilter += ' AND (t.created_by = ? OR r.created_by = ?)';
+    receiptsFilter += ' AND r.created_by = ?';
+    transactionsFilter += ' AND t.created_by = ?';
+    queryParams.push(req.user.id, req.user.id);
+    receiptsParams.push(req.user.id);
+    transactionsParams.push(req.user.id);
+  } else {
+    console.log('Admin user - showing all company data');
+  }
+
   const queries = [
-    'SELECT COUNT(*) as total_matches FROM matches',
-    'SELECT COUNT(*) as confirmed_matches FROM matches WHERE user_confirmed = 1',
-    'SELECT COUNT(*) as pending_matches FROM matches WHERE user_confirmed = 0',
-    'SELECT COUNT(*) as unmatched_receipts FROM receipts WHERE id NOT IN (SELECT receipt_id FROM matches WHERE user_confirmed = 1)',
-    'SELECT COUNT(*) as unmatched_transactions FROM transactions WHERE id NOT IN (SELECT transaction_id FROM matches WHERE user_confirmed = 1)'
+    {
+      query: `
+        SELECT COUNT(*) as total_matches 
+        FROM matches m
+        JOIN transactions t ON m.transaction_id = t.id
+        JOIN receipts r ON m.receipt_id = r.id
+        ${matchesFilter}
+      `,
+      params: queryParams
+    },
+    {
+      query: `
+        SELECT COUNT(*) as confirmed_matches 
+        FROM matches m
+        JOIN transactions t ON m.transaction_id = t.id
+        JOIN receipts r ON m.receipt_id = r.id
+        ${matchesFilter} AND m.user_confirmed = 1
+      `,
+      params: queryParams
+    },
+    {
+      query: `
+        SELECT COUNT(*) as pending_matches 
+        FROM matches m
+        JOIN transactions t ON m.transaction_id = t.id
+        JOIN receipts r ON m.receipt_id = r.id
+        ${matchesFilter} AND m.user_confirmed = 0
+      `,
+      params: queryParams
+    },
+    {
+      query: `
+        SELECT COUNT(*) as unmatched_receipts 
+        FROM receipts r
+        ${receiptsFilter} AND r.id NOT IN (
+          SELECT m.receipt_id 
+          FROM matches m
+          JOIN transactions t ON m.transaction_id = t.id
+          JOIN receipts r2 ON m.receipt_id = r2.id
+          ${matchesFilter.replace('r.company_id', 'r2.company_id')} AND m.user_confirmed = 1
+        )
+      `,
+      params: receiptsParams
+    },
+    {
+      query: `
+        SELECT COUNT(*) as unmatched_transactions 
+        FROM transactions t
+        ${transactionsFilter} AND t.id NOT IN (
+          SELECT m.transaction_id 
+          FROM matches m
+          JOIN transactions t2 ON m.transaction_id = t2.id
+          JOIN receipts r ON m.receipt_id = r.id
+          ${matchesFilter.replace('t.company_id', 't2.company_id')} AND m.user_confirmed = 1
+        )
+      `,
+      params: transactionsParams
+    }
   ];
 
   const stats = {};
   let completed = 0;
 
-  queries.forEach((query, index) => {
-    db.get(query, [], (err, row) => {
-      if (!err) {
+  queries.forEach(({ query, params }, index) => {
+    db.get(query, params, (err, row) => {
+      if (err) {
+        console.error(`Stats query ${index} error:`, err);
+      } else {
         const key = Object.keys(row)[0];
         stats[key] = row[key];
       }
       
       completed++;
       if (completed === queries.length) {
+        console.log('Final stats result:', stats);
         res.json(stats);
       }
+    });
+  });
+});
+
+// Debug route to see all matches for troubleshooting
+router.get('/debug', (req, res) => {
+  console.log('=== MATCHES DEBUG ===');
+  console.log('User:', {
+    id: req.user?.id,
+    email: req.user?.email,
+    currentRole: req.user?.currentRole,
+    companyId: req.companyId,
+    currentCompany: req.user?.currentCompany
+  });
+
+  // First, let's check user's actual company association
+  db.get(`
+    SELECT uc.company_id, uc.role, c.name as company_name
+    FROM user_companies uc
+    JOIN companies c ON uc.company_id = c.id
+    WHERE uc.user_id = ? AND uc.status = 'active'
+    ORDER BY uc.company_id
+    LIMIT 1
+  `, [req.user.id], (err, userCompany) => {
+    if (err) {
+      console.error('Error checking user company:', err);
+    } else {
+      console.log('User company association:', userCompany);
+    }
+
+    // Get all matches with full details
+    const query = `
+      SELECT m.*, m.created_by as match_created_by, m.updated_by as match_updated_by,
+             t.transaction_date, t.description, t.amount as transaction_amount, t.company_id as txn_company_id, t.created_by as txn_created_by,
+             r.original_filename, r.extracted_amount, r.company_id as receipt_company_id, r.created_by as receipt_created_by
+      FROM matches m
+      JOIN transactions t ON m.transaction_id = t.id
+      JOIN receipts r ON m.receipt_id = r.id
+      ORDER BY m.created_at DESC
+      LIMIT 20
+    `;
+
+    db.all(query, [], (err, matches) => {
+      if (err) {
+        console.error('Error fetching debug matches:', err);
+        return res.status(500).json({ error: err.message });
+      }
+
+      console.log(`Found ${matches.length} total matches in database`);
+      
+      matches.forEach((match, index) => {
+        console.log(`Match ${index + 1}:`, {
+          id: match.id,
+          confidence: match.match_confidence,
+          status: match.match_status,
+          user_confirmed: match.user_confirmed,
+          match_created_by: match.match_created_by,
+          txn_company_id: match.txn_company_id,
+          txn_created_by: match.txn_created_by,
+          receipt_company_id: match.receipt_company_id,
+          receipt_created_by: match.receipt_created_by,
+          transaction_desc: match.description?.substring(0, 50),
+          receipt_file: match.original_filename
+        });
+      });
+
+      // Now check what matches would be visible with current filtering
+      let whereClause = 'WHERE t.company_id = ? AND r.company_id = ?';
+      let queryParams = [req.companyId, req.companyId];
+
+      if (req.user && req.user.currentRole !== 'admin') {
+        whereClause += ' AND (t.created_by = ? OR r.created_by = ?)';
+        queryParams.push(req.user.id, req.user.id);
+      }
+
+      const filteredQuery = `
+        SELECT m.*, 
+               t.transaction_date, t.description, t.amount as transaction_amount,
+               r.original_filename, r.extracted_amount
+        FROM matches m
+        JOIN transactions t ON m.transaction_id = t.id
+        JOIN receipts r ON m.receipt_id = r.id
+        ${whereClause}
+        ORDER BY m.created_at DESC
+      `;
+
+      console.log('Filtered query:', filteredQuery);
+      console.log('Filtered params:', queryParams);
+
+      db.all(filteredQuery, queryParams, (err, filteredMatches) => {
+        if (err) {
+          console.error('Error fetching filtered matches:', err);
+        } else {
+          console.log(`${filteredMatches.length} matches visible to current user`);
+          if (filteredMatches.length > 0) {
+            console.log('Sample visible match:', {
+              id: filteredMatches[0].id,
+              confidence: filteredMatches[0].match_confidence,
+              transaction_desc: filteredMatches[0].description?.substring(0, 50),
+              receipt_file: filteredMatches[0].original_filename
+            });
+          }
+        }
+
+        res.json({
+          user: {
+            id: req.user?.id,
+            email: req.user?.email,
+            role: req.user?.currentRole,
+            companyId: req.companyId,
+            actualCompany: userCompany
+          },
+          totalMatches: matches.length,
+          visibleMatches: filteredMatches?.length || 0,
+          allMatches: matches,
+          visibleMatchesData: filteredMatches
+        });
+      });
     });
   });
 });
