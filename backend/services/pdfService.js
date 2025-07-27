@@ -62,8 +62,6 @@ class PDFService {
       groupBy = 'date' // 'date', 'merchant', 'amount'
     } = options;
 
-
-
     const doc = new PDFDocument({ margin: this.pageMargin });
     let yPosition = this.pageMargin;
 
@@ -320,11 +318,13 @@ class PDFService {
     yPosition += 25;
 
     receipts.forEach(receipt => {
-      if (yPosition > doc.page.height - 100) {
+      // Start new page if we don't have enough space for receipt + image
+      if (yPosition > doc.page.height - 400) {
         doc.addPage();
         yPosition = this.pageMargin;
       }
 
+      // Receipt header
       doc.fontSize(11)
          .fillColor(this.colors.text)
          .font('Helvetica-Bold')
@@ -332,8 +332,14 @@ class PDFService {
 
       yPosition += 15;
 
+      // Receipt details
+      // Format date safely
+      const dateFormats = ['MM/DD/YYYY', 'MM/DD/YY', 'M/D/YYYY', 'M/D/YY', 'YYYY-MM-DD'];
+      const receiptDate = moment(receipt.extracted_date, dateFormats);
+      const formattedDate = receiptDate.isValid() ? receiptDate.format('MM/DD/YYYY') : receipt.extracted_date || 'Unknown';
+
       const details = [
-        `Date: ${moment(receipt.extracted_date).format('MM/DD/YYYY')}`,
+        `Date: ${formattedDate}`,
         `Amount: $${parseFloat(receipt.extracted_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
         `Merchant: ${receipt.extracted_merchant || 'Unknown'}`,
         `Status: ${receipt.match_status || 'Unmatched'}`
@@ -349,9 +355,98 @@ class PDFService {
       });
 
       yPosition += 10;
+
+      // Add receipt image
+      yPosition = this.addReceiptImage(doc, receipt, yPosition);
     });
 
     return yPosition + 15;
+  }
+
+  addReceiptImage(doc, receipt, yPosition) {
+    try {
+      const filePath = receipt.file_path;
+      
+      // Check if file exists
+      if (!filePath || !fs.existsSync(filePath)) {
+        // File not found - show placeholder
+        doc.fontSize(9)
+           .fillColor('#e53e3e')
+           .text('Receipt file not found', this.pageMargin + 30, yPosition);
+        return yPosition + 20;
+      }
+
+      // Get file extension to determine type
+      const fileExt = path.extname(receipt.original_filename).toLowerCase();
+      const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp'];
+      
+      if (imageExtensions.includes(fileExt)) {
+        // Handle image files
+        try {
+          const maxWidth = 300;
+          const maxHeight = 200;
+          
+          // Add the image to the PDF
+          doc.image(filePath, this.pageMargin + 30, yPosition, {
+            fit: [maxWidth, maxHeight],
+            align: 'left'
+          });
+          
+          // Calculate image height to adjust position
+          const img = doc.openImage(filePath);
+          const aspectRatio = img.height / img.width;
+          const displayWidth = Math.min(maxWidth, img.width);
+          const displayHeight = Math.min(maxHeight, displayWidth * aspectRatio);
+          
+          return yPosition + displayHeight + 20;
+          
+        } catch (imageError) {
+          console.error('Error adding image to PDF:', imageError);
+          doc.fontSize(9)
+             .fillColor('#e53e3e')
+             .text('Error loading receipt image', this.pageMargin + 30, yPosition);
+          return yPosition + 20;
+        }
+        
+      } else if (fileExt === '.pdf') {
+        // Handle PDF files - show placeholder with note
+        doc.fontSize(10)
+           .fillColor(this.colors.text)
+           .font('Helvetica-Bold')
+           .text('PDF Receipt Document', this.pageMargin + 30, yPosition);
+        
+        doc.fontSize(9)
+           .fillColor('#718096')
+           .font('Helvetica')
+           .text(`File: ${receipt.original_filename}`, this.pageMargin + 30, yPosition + 15);
+        
+        // Add a border to indicate this is a placeholder
+        doc.rect(this.pageMargin + 30, yPosition + 35, 300, 80)
+           .stroke('#e2e8f0');
+           
+        doc.fontSize(9)
+           .fillColor('#4a5568')
+           .text('PDF Receipt Preview Not Available', this.pageMargin + 40, yPosition + 50)
+           .text('View original file for complete content', this.pageMargin + 40, yPosition + 65)
+           .text('OCR extracted data shown above', this.pageMargin + 40, yPosition + 80);
+        
+        return yPosition + 130;
+        
+      } else {
+        // Unknown file type
+        doc.fontSize(9)
+           .fillColor('#e53e3e')
+           .text(`Unsupported file type: ${fileExt}`, this.pageMargin + 30, yPosition);
+        return yPosition + 20;
+      }
+      
+    } catch (error) {
+      console.error('Error processing receipt file:', error);
+      doc.fontSize(9)
+         .fillColor('#e53e3e')
+         .text('Error processing receipt file', this.pageMargin + 30, yPosition);
+      return yPosition + 20;
+    }
   }
 
   addKeyMetrics(doc, analytics, yPosition) {
@@ -425,7 +520,10 @@ class PDFService {
       let key;
       switch (groupBy) {
         case 'date':
-          key = moment(receipt.extracted_date).format('MMMM YYYY');
+          // Parse date with proper format (MM/DD/YYYY)
+          const dateFormats = ['MM/DD/YYYY', 'MM/DD/YY', 'M/D/YYYY', 'M/D/YY', 'YYYY-MM-DD'];
+          const receiptDate = moment(receipt.extracted_date, dateFormats);
+          key = receiptDate.isValid() ? receiptDate.format('MMMM YYYY') : 'Unknown Date';
           break;
         case 'merchant':
           key = receipt.extracted_merchant || 'Unknown Merchant';

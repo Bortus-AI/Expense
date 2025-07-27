@@ -535,12 +535,18 @@ class ExcelService {
     // Group by month
     const monthGroups = {};
     receipts.forEach(receipt => {
-      const month = moment(receipt.extracted_date).format('YYYY-MM');
-      if (!monthGroups[month]) {
-        monthGroups[month] = { count: 0, totalAmount: 0 };
+      // Parse date with proper format (MM/DD/YYYY)
+      const dateFormats = ['MM/DD/YYYY', 'MM/DD/YY', 'M/D/YYYY', 'M/D/YY', 'YYYY-MM-DD'];
+      const receiptDate = moment(receipt.extracted_date, dateFormats);
+      
+      if (receiptDate.isValid()) {
+        const month = receiptDate.format('YYYY-MM');
+        if (!monthGroups[month]) {
+          monthGroups[month] = { count: 0, totalAmount: 0 };
+        }
+        monthGroups[month].count++;
+        monthGroups[month].totalAmount += parseFloat(receipt.extracted_amount || 0);
       }
-      monthGroups[month].count++;
-      monthGroups[month].totalAmount += parseFloat(receipt.extracted_amount || 0);
     });
 
     // Convert to array and sort by month

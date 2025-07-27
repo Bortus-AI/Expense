@@ -266,20 +266,11 @@ router.post('/pdf/receipts', async (req, res) => {
       title = 'Receipt Gallery Report'
     } = req.body;
 
-    // Debug logging
-    console.log('=== PDF RECEIPTS EXPORT DEBUG ===');
-    console.log('User:', req.user?.email);
-    console.log('Company ID:', req.companyId);
-    console.log('Current Company:', req.user?.currentCompany?.name);
-    console.log('Request body:', { startDate, endDate, groupBy, title });
-
     if (!req.companyId) {
-      console.error('No company ID found in request');
       return res.status(400).json({ error: 'Company context required' });
     }
 
     // Build query with company scoping and date filtering
-    // Use more flexible date filtering to include receipts without extracted_date
     let query = `
       SELECT r.*, m.match_status 
       FROM receipts r
@@ -316,46 +307,10 @@ router.post('/pdf/receipts', async (req, res) => {
 
     query += ' ORDER BY COALESCE(r.extracted_date, r.upload_date) DESC';
 
-    console.log('Final query:', query);
-    console.log('Query params:', params);
-
     db.all(query, params, async (err, receipts) => {
       if (err) {
         console.error('Error fetching receipts for export:', err);
         return res.status(500).json({ error: 'Failed to fetch receipts' });
-      }
-
-      console.log(`Found ${receipts.length} receipts for export`);
-      if (receipts.length > 0) {
-        console.log('Sample receipt:', {
-          id: receipts[0].id,
-          filename: receipts[0].original_filename,
-          extracted_date: receipts[0].extracted_date,
-          upload_date: receipts[0].upload_date,
-          extracted_amount: receipts[0].extracted_amount,
-          extracted_merchant: receipts[0].extracted_merchant,
-          company_id: receipts[0].company_id
-        });
-      } else {
-        console.log('No receipts found - checking if any receipts exist in database...');
-        // Check if receipts exist but don't have company_id
-        db.all('SELECT COUNT(*) as count FROM receipts', [], (countErr, countResult) => {
-          if (!countErr && countResult[0]) {
-            console.log(`Total receipts in database: ${countResult[0].count}`);
-            // Check company_id distribution
-            db.all('SELECT company_id, COUNT(*) as count FROM receipts GROUP BY company_id', [], (distErr, distResult) => {
-              if (!distErr) {
-                console.log('Receipt distribution by company_id:', distResult);
-              }
-            });
-            // Check recent receipts
-            db.all('SELECT id, original_filename, extracted_date, upload_date, company_id FROM receipts ORDER BY id DESC LIMIT 10', [], (recentErr, recentResults) => {
-              if (!recentErr) {
-                console.log('Recent receipts in database:', recentResults);
-              }
-            });
-          }
-        });
       }
 
       try {
@@ -395,19 +350,11 @@ router.post('/excel/receipts', async (req, res) => {
       includeOCRData = true
     } = req.body;
 
-    // Debug logging
-    console.log('=== EXCEL RECEIPTS EXPORT DEBUG ===');
-    console.log('User:', req.user?.email);
-    console.log('Company ID:', req.companyId);
-    console.log('Current Company:', req.user?.currentCompany?.name);
-    console.log('Request body:', { startDate, endDate, includeOCRData });
-
     if (!req.companyId) {
-      console.error('No company ID found in request');
       return res.status(400).json({ error: 'Company context required' });
     }
 
-    // Build query with company scoping - temporarily disable date filtering
+    // Build query with company scoping
     let query = `
       SELECT r.*, m.match_status 
       FROM receipts r
@@ -444,28 +391,10 @@ router.post('/excel/receipts', async (req, res) => {
 
     query += ' ORDER BY COALESCE(r.extracted_date, r.upload_date) DESC';
 
-    console.log('Final query:', query);
-    console.log('Query params:', params);
-
     db.all(query, params, async (err, receipts) => {
       if (err) {
         console.error('Error fetching receipts for export:', err);
         return res.status(500).json({ error: 'Failed to fetch receipts' });
-      }
-
-      console.log(`Found ${receipts.length} receipts for Excel export`);
-      if (receipts.length > 0) {
-        console.log('Sample receipt:', {
-          id: receipts[0].id,
-          filename: receipts[0].original_filename,
-          extracted_date: receipts[0].extracted_date,
-          upload_date: receipts[0].upload_date,
-          extracted_amount: receipts[0].extracted_amount,
-          extracted_merchant: receipts[0].extracted_merchant,
-          company_id: receipts[0].company_id
-        });
-      } else {
-        console.log('No receipts found for Excel export - same issue as PDF export');
       }
 
       try {
