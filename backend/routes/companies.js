@@ -102,6 +102,57 @@ router.put('/:id', requireCompanyAccess, requireRole('admin'), (req, res) => {
   });
 });
 
+// Get current company users for admin filtering (admin only) - uses user's current company context
+router.get('/current/users/filter', requireCompanyAccess, requireRole('admin'), (req, res) => {
+  console.log('=== CURRENT COMPANY USERS FILTER ENDPOINT ===');
+  console.log('User:', {
+    id: req.user?.id,
+    email: req.user?.email,
+    currentRole: req.user?.currentRole,
+    currentCompany: req.user?.currentCompany
+  });
+
+  if (!req.user.currentCompany) {
+    console.log('No current company found for user');
+    return res.status(400).json({ error: 'No current company context' });
+  }
+
+  const companyId = req.user.currentCompany.id;
+
+  const query = `
+    SELECT u.id, u.email, u.first_name, u.last_name, uc.role, uc.status
+    FROM users u
+    JOIN user_companies uc ON u.id = uc.user_id
+    WHERE uc.company_id = ? AND uc.status = 'active'
+    ORDER BY u.first_name, u.last_name
+  `;
+
+  db.all(query, [companyId], (err, users) => {
+    if (err) {
+      console.error('Error fetching current company users for filtering:', err);
+      return res.status(500).json({ error: 'Failed to fetch users' });
+    }
+
+    console.log(`Found ${users.length} users for current company ${companyId}`);
+    console.log('Raw users from database:', users);
+
+    const formattedUsers = users.map(user => ({
+      id: user.id,
+      email: user.email,
+      firstName: user.first_name,
+      lastName: user.last_name,
+      fullName: `${user.first_name} ${user.last_name}`,
+      role: user.role,
+      status: user.status
+    }));
+
+    console.log('Formatted users:', formattedUsers);
+    console.log('Sending response with users:', { users: formattedUsers });
+
+    res.json({ users: formattedUsers });
+  });
+});
+
 // Get company users for admin filtering (admin only)
 router.get('/:id/users/filter', requireCompanyAccess, requireRole('admin'), (req, res) => {
   const companyId = parseInt(req.params.id);
@@ -139,57 +190,6 @@ router.get('/:id/users/filter', requireCompanyAccess, requireRole('admin'), (req
     }
 
     console.log(`Found ${users.length} users for company ${companyId}`);
-    console.log('Raw users from database:', users);
-
-    const formattedUsers = users.map(user => ({
-      id: user.id,
-      email: user.email,
-      firstName: user.first_name,
-      lastName: user.last_name,
-      fullName: `${user.first_name} ${user.last_name}`,
-      role: user.role,
-      status: user.status
-    }));
-
-    console.log('Formatted users:', formattedUsers);
-    console.log('Sending response with users:', { users: formattedUsers });
-
-    res.json({ users: formattedUsers });
-  });
-});
-
-// Get current company users for admin filtering (admin only) - uses user's current company context
-router.get('/current/users/filter', requireCompanyAccess, requireRole('admin'), (req, res) => {
-  console.log('=== CURRENT COMPANY USERS FILTER ENDPOINT ===');
-  console.log('User:', {
-    id: req.user?.id,
-    email: req.user?.email,
-    currentRole: req.user?.currentRole,
-    currentCompany: req.user?.currentCompany
-  });
-
-  if (!req.user.currentCompany) {
-    console.log('No current company found for user');
-    return res.status(400).json({ error: 'No current company context' });
-  }
-
-  const companyId = req.user.currentCompany.id;
-
-  const query = `
-    SELECT u.id, u.email, u.first_name, u.last_name, uc.role, uc.status
-    FROM users u
-    JOIN user_companies uc ON u.id = uc.user_id
-    WHERE uc.company_id = ? AND uc.status = 'active'
-    ORDER BY u.first_name, u.last_name
-  `;
-
-  db.all(query, [companyId], (err, users) => {
-    if (err) {
-      console.error('Error fetching current company users for filtering:', err);
-      return res.status(500).json({ error: 'Failed to fetch users' });
-    }
-
-    console.log(`Found ${users.length} users for current company ${companyId}`);
     console.log('Raw users from database:', users);
 
     const formattedUsers = users.map(user => ({

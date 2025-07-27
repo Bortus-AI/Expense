@@ -150,6 +150,7 @@ export const companyAPI = {
   getUsersForFilter: () => {
     // Use the /companies/current/users/filter endpoint instead of the ID-based one
     // This will use the user's current company context from the backend
+    // Updated: 2024-01-15 - Force browser refresh
     console.log('getUsersForFilter called - using current company endpoint');
     return api.get('/companies/current/users/filter');
   },

@@ -68,6 +68,7 @@ const getUserCompanies = (req, res, next) => {
     
     // Set current company from header or use first company
     const companyId = req.headers['x-company-id'];
+    
     if (companyId) {
       const currentCompany = companies.find(c => c.id === parseInt(companyId));
       if (currentCompany) {
@@ -110,9 +111,11 @@ const requireRole = (minimumRole) => {
 
 // Middleware to ensure user has access to a company
 const requireCompanyAccess = (req, res, next) => {
+  
   if (!req.user.currentCompany) {
     return res.status(403).json({ error: 'Company access required' });
   }
+  
   next();
 };
 
