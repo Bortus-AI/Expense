@@ -50,8 +50,33 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  // Logout function
+  const logout = useCallback(async () => {
+    try {
+      if (accessToken) {
+        await api.post('/auth/logout');
+      }
+    } catch (error) {
+      console.error('Logout request failed:', error);
+    } finally {
+      // Clear state and localStorage
+      setUser(null);
+      setCompanies([]);
+      setCurrentCompany(null);
+      setAccessToken(null);
+      setRefreshToken(null);
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('currentCompanyId');
+      
+      // Clear axios headers
+      delete axios.defaults.headers.common['Authorization'];
+      delete axios.defaults.headers.common['X-Company-ID'];
+    }
+  }, [accessToken]);
+
   // Refresh access token
-  const refreshAccessToken = useCallback(async () => {
+  const refreshAccessToken = async () => {
     try {
       if (!refreshToken || isTokenExpired(refreshToken)) {
         logout();
@@ -72,7 +97,7 @@ export const AuthProvider = ({ children }) => {
       logout();
       return null;
     }
-  }, [refreshToken, isTokenExpired, logout]);
+  };
 
   // Axios response interceptor for automatic token refresh
   useEffect(() => {
@@ -81,13 +106,20 @@ export const AuthProvider = ({ children }) => {
       async (error) => {
         const originalRequest = error.config;
 
-        if (error.response?.status === 401 && !originalRequest._retry) {
+        if (error.response?.status === 401 && !originalRequest._retry && refreshToken) {
+          console.log('Received 401 error, attempting token refresh...');
           originalRequest._retry = true;
 
-          const newToken = await refreshAccessToken();
-          if (newToken) {
-            originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
-            return axios(originalRequest);
+          try {
+            const newToken = await refreshAccessToken();
+            if (newToken) {
+              console.log('Token refreshed successfully, retrying request');
+              originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
+              return axios(originalRequest);
+            }
+          } catch (refreshError) {
+            console.error('Token refresh failed in interceptor:', refreshError);
+            // Don't retry on refresh failure
           }
         }
 
@@ -98,24 +130,32 @@ export const AuthProvider = ({ children }) => {
     return () => {
       axios.interceptors.response.eject(responseInterceptor);
     };
-  }, [refreshToken, refreshAccessToken]);
+  }, [refreshToken]);
 
   // Load user data from token
-  const loadUserFromToken = useCallback(async () => {
+  const loadUserFromToken = async () => {
     if (!accessToken) {
+      console.log('No access token found, skipping user data load');
       setLoading(false);
       return;
     }
 
     if (isTokenExpired(accessToken)) {
+      console.log('Access token expired, attempting refresh...');
       const newToken = await refreshAccessToken();
       if (!newToken) {
+        console.log('Token refresh failed, clearing session');
         setLoading(false);
         return;
       }
     }
 
     try {
+      console.log('Loading user data from token...');
+      
+      // Set up axios authorization header first
+      axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+      
       const decoded = jwtDecode(accessToken);
       setUser({
         id: decoded.id,
@@ -126,35 +166,72 @@ export const AuthProvider = ({ children }) => {
 
       // Load user's companies
       const response = await api.get('/companies');
-      setCompanies(response.data.companies);
       
-      if (response.data.companies.length > 0) {
-        const savedCompanyId = localStorage.getItem('currentCompanyId');
-        const savedCompany = response.data.companies.find(c => c.id === parseInt(savedCompanyId));
-        setCurrentCompany(savedCompany || response.data.companies[0]);
+      if (response.data && response.data.companies) {
+        setCompanies(response.data.companies);
+        
+        if (response.data.companies.length > 0) {
+          const savedCompanyId = localStorage.getItem('currentCompanyId');
+          const savedCompany = response.data.companies.find(c => c.id === parseInt(savedCompanyId));
+          const currentComp = savedCompany || response.data.companies[0];
+          setCurrentCompany(currentComp);
+          
+          // Set company header
+          axios.defaults.headers.common['X-Company-ID'] = currentComp.id.toString();
+          console.log('User data loaded successfully, current company:', currentComp.name);
+        }
+      } else {
+        console.error('Invalid response format from /companies endpoint');
+        throw new Error('Invalid response from server');
       }
     } catch (error) {
       console.error('Failed to load user data:', error);
-      logout();
+      
+      // Only clear state if it's a real authentication error (not network issues)
+      if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+        console.log('Authentication error detected, clearing session');
+        setUser(null);
+        setCompanies([]);
+        setCurrentCompany(null);
+        setAccessToken(null);
+        setRefreshToken(null);
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('currentCompanyId');
+        
+        // Clear axios headers
+        delete axios.defaults.headers.common['Authorization'];
+        delete axios.defaults.headers.common['X-Company-ID'];
+      } else {
+        console.log('Network or server error, keeping session intact:', error.message);
+      }
     } finally {
       setLoading(false);
     }
-  }, [accessToken, isTokenExpired, refreshAccessToken, logout]);
+  };
 
   // Initialize auth state
   useEffect(() => {
-    loadUserFromToken();
-  }, [loadUserFromToken]);
+    if (accessToken && !user) {
+      // Only load user data if we have a token but no user data
+      console.log('Initializing auth state from stored token...');
+      loadUserFromToken();
+    } else if (!accessToken) {
+      setLoading(false);
+    }
+  }, [accessToken, user]);
 
   // Login function
   const login = async (email, password) => {
     try {
+      console.log('Starting login process...');
       const response = await api.post('/auth/login', {
         email,
         password
       });
 
       const { user, companies, accessToken, refreshToken } = response.data;
+      console.log('Login successful, setting up user session...', { userId: user.id, companiesCount: companies.length });
 
       // Store tokens
       setAccessToken(accessToken);
@@ -171,6 +248,13 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem('currentCompanyId', companies[0].id.toString());
       }
 
+      // Configure axios defaults immediately
+      axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
+      if (companies.length > 0) {
+        axios.defaults.headers.common['X-Company-ID'] = companies[0].id.toString();
+      }
+
+      console.log('Login setup completed successfully');
       return { success: true, user, companies };
     } catch (error) {
       console.error('Login failed:', error);
@@ -209,31 +293,6 @@ export const AuthProvider = ({ children }) => {
       };
     }
   };
-
-  // Logout function
-  const logout = useCallback(async () => {
-    try {
-      if (accessToken) {
-        await api.post('/auth/logout');
-      }
-    } catch (error) {
-      console.error('Logout request failed:', error);
-    } finally {
-      // Clear state and localStorage
-      setUser(null);
-      setCompanies([]);
-      setCurrentCompany(null);
-      setAccessToken(null);
-      setRefreshToken(null);
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
-      localStorage.removeItem('currentCompanyId');
-      
-      // Clear axios headers
-      delete axios.defaults.headers.common['Authorization'];
-      delete axios.defaults.headers.common['X-Company-ID'];
-    }
-  }, [accessToken]);
 
   // Switch company
   const switchCompany = (company) => {
