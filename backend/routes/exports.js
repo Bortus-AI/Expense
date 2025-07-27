@@ -85,7 +85,7 @@ router.post('/pdf/transactions', async (req, res) => {
       return res.status(400).json({ error: 'Company context required' });
     }
 
-    // Build query with company scoping and date filtering
+    // Build query with company scoping, date filtering, and match status filtering
     let query = `
       SELECT t.*, 
              COUNT(m.id) as receipt_count,
@@ -97,6 +97,20 @@ router.post('/pdf/transactions', async (req, res) => {
     `;
     
     const params = [req.companyId];
+
+    // Apply match status filtering
+    if (includeMatched && !includeUnmatched) {
+      // Only matched transactions
+      query += ' AND m.id IS NOT NULL';
+      console.log('Filtering for MATCHED transactions only');
+    } else if (!includeMatched && includeUnmatched) {
+      // Only unmatched transactions
+      query += ' AND m.id IS NULL';
+      console.log('Filtering for UNMATCHED transactions only');
+    } else {
+      console.log('Including both MATCHED and UNMATCHED transactions');
+    }
+    // If both includeMatched and includeUnmatched are true, include all (no additional filter)
 
     if (startDate) {
       query += ' AND t.transaction_date >= ?';
@@ -171,7 +185,7 @@ router.post('/excel/transactions', async (req, res) => {
       includeUnmatched = true
     } = req.body;
 
-    // Build query with company scoping and date filtering
+    // Build query with company scoping, date filtering, and match status filtering
     let query = `
       SELECT t.*, 
              COUNT(m.id) as receipt_count,
@@ -183,6 +197,16 @@ router.post('/excel/transactions', async (req, res) => {
     `;
     
     const params = [req.companyId];
+
+    // Apply match status filtering
+    if (includeMatched && !includeUnmatched) {
+      // Only matched transactions
+      query += ' AND m.id IS NOT NULL';
+    } else if (!includeMatched && includeUnmatched) {
+      // Only unmatched transactions
+      query += ' AND m.id IS NULL';
+    }
+    // If both includeMatched and includeUnmatched are true, include all (no additional filter)
 
     if (startDate) {
       query += ' AND t.transaction_date >= ?';
@@ -242,7 +266,20 @@ router.post('/pdf/receipts', async (req, res) => {
       title = 'Receipt Gallery Report'
     } = req.body;
 
+    // Debug logging
+    console.log('=== PDF RECEIPTS EXPORT DEBUG ===');
+    console.log('User:', req.user?.email);
+    console.log('Company ID:', req.companyId);
+    console.log('Current Company:', req.user?.currentCompany?.name);
+    console.log('Request body:', { startDate, endDate, groupBy, title });
+
+    if (!req.companyId) {
+      console.error('No company ID found in request');
+      return res.status(400).json({ error: 'Company context required' });
+    }
+
     // Build query with company scoping and date filtering
+    // Use more flexible date filtering to include receipts without extracted_date
     let query = `
       SELECT r.*, m.match_status 
       FROM receipts r
@@ -252,22 +289,73 @@ router.post('/pdf/receipts', async (req, res) => {
     
     const params = [req.companyId];
 
+    // Date filtering with flexible date handling
     if (startDate) {
-      query += ' AND r.extracted_date >= ?';
-      params.push(startDate);
+      // Handle both MM/DD/YYYY and YYYY-MM-DD date formats
+      query += ` AND (
+        (r.extracted_date >= ? OR r.extracted_date >= ?) OR 
+        (r.extracted_date IS NULL AND r.upload_date >= ?)
+      )`;
+      const startDateMDY = moment(startDate).format('MM/DD/YYYY');
+      params.push(startDate);      // YYYY-MM-DD format
+      params.push(startDateMDY);   // MM/DD/YYYY format  
+      params.push(startDate);      // For upload_date
     }
 
     if (endDate) {
-      query += ' AND r.extracted_date <= ?';
-      params.push(endDate);
+      // Handle both MM/DD/YYYY and YYYY-MM-DD date formats
+      query += ` AND (
+        (r.extracted_date <= ? OR r.extracted_date <= ?) OR 
+        (r.extracted_date IS NULL AND r.upload_date <= ?)
+      )`;
+      const endDateMDY = moment(endDate).format('MM/DD/YYYY');
+      params.push(endDate);        // YYYY-MM-DD format
+      params.push(endDateMDY);     // MM/DD/YYYY format
+      params.push(endDate);        // For upload_date
     }
 
-    query += ' ORDER BY r.extracted_date DESC';
+    query += ' ORDER BY COALESCE(r.extracted_date, r.upload_date) DESC';
+
+    console.log('Final query:', query);
+    console.log('Query params:', params);
 
     db.all(query, params, async (err, receipts) => {
       if (err) {
         console.error('Error fetching receipts for export:', err);
         return res.status(500).json({ error: 'Failed to fetch receipts' });
+      }
+
+      console.log(`Found ${receipts.length} receipts for export`);
+      if (receipts.length > 0) {
+        console.log('Sample receipt:', {
+          id: receipts[0].id,
+          filename: receipts[0].original_filename,
+          extracted_date: receipts[0].extracted_date,
+          upload_date: receipts[0].upload_date,
+          extracted_amount: receipts[0].extracted_amount,
+          extracted_merchant: receipts[0].extracted_merchant,
+          company_id: receipts[0].company_id
+        });
+      } else {
+        console.log('No receipts found - checking if any receipts exist in database...');
+        // Check if receipts exist but don't have company_id
+        db.all('SELECT COUNT(*) as count FROM receipts', [], (countErr, countResult) => {
+          if (!countErr && countResult[0]) {
+            console.log(`Total receipts in database: ${countResult[0].count}`);
+            // Check company_id distribution
+            db.all('SELECT company_id, COUNT(*) as count FROM receipts GROUP BY company_id', [], (distErr, distResult) => {
+              if (!distErr) {
+                console.log('Receipt distribution by company_id:', distResult);
+              }
+            });
+            // Check recent receipts
+            db.all('SELECT id, original_filename, extracted_date, upload_date, company_id FROM receipts ORDER BY id DESC LIMIT 10', [], (recentErr, recentResults) => {
+              if (!recentErr) {
+                console.log('Recent receipts in database:', recentResults);
+              }
+            });
+          }
+        });
       }
 
       try {
@@ -307,7 +395,19 @@ router.post('/excel/receipts', async (req, res) => {
       includeOCRData = true
     } = req.body;
 
-    // Build query with company scoping and date filtering
+    // Debug logging
+    console.log('=== EXCEL RECEIPTS EXPORT DEBUG ===');
+    console.log('User:', req.user?.email);
+    console.log('Company ID:', req.companyId);
+    console.log('Current Company:', req.user?.currentCompany?.name);
+    console.log('Request body:', { startDate, endDate, includeOCRData });
+
+    if (!req.companyId) {
+      console.error('No company ID found in request');
+      return res.status(400).json({ error: 'Company context required' });
+    }
+
+    // Build query with company scoping - temporarily disable date filtering
     let query = `
       SELECT r.*, m.match_status 
       FROM receipts r
@@ -317,22 +417,55 @@ router.post('/excel/receipts', async (req, res) => {
     
     const params = [req.companyId];
 
+    // Date filtering with flexible date handling
     if (startDate) {
-      query += ' AND r.extracted_date >= ?';
-      params.push(startDate);
+      // Handle both MM/DD/YYYY and YYYY-MM-DD date formats
+      query += ` AND (
+        (r.extracted_date >= ? OR r.extracted_date >= ?) OR 
+        (r.extracted_date IS NULL AND r.upload_date >= ?)
+      )`;
+      const startDateMDY = moment(startDate).format('MM/DD/YYYY');
+      params.push(startDate);      // YYYY-MM-DD format
+      params.push(startDateMDY);   // MM/DD/YYYY format  
+      params.push(startDate);      // For upload_date
     }
 
     if (endDate) {
-      query += ' AND r.extracted_date <= ?';
-      params.push(endDate);
+      // Handle both MM/DD/YYYY and YYYY-MM-DD date formats
+      query += ` AND (
+        (r.extracted_date <= ? OR r.extracted_date <= ?) OR 
+        (r.extracted_date IS NULL AND r.upload_date <= ?)
+      )`;
+      const endDateMDY = moment(endDate).format('MM/DD/YYYY');
+      params.push(endDate);        // YYYY-MM-DD format
+      params.push(endDateMDY);     // MM/DD/YYYY format
+      params.push(endDate);        // For upload_date
     }
 
-    query += ' ORDER BY r.extracted_date DESC';
+    query += ' ORDER BY COALESCE(r.extracted_date, r.upload_date) DESC';
+
+    console.log('Final query:', query);
+    console.log('Query params:', params);
 
     db.all(query, params, async (err, receipts) => {
       if (err) {
         console.error('Error fetching receipts for export:', err);
         return res.status(500).json({ error: 'Failed to fetch receipts' });
+      }
+
+      console.log(`Found ${receipts.length} receipts for Excel export`);
+      if (receipts.length > 0) {
+        console.log('Sample receipt:', {
+          id: receipts[0].id,
+          filename: receipts[0].original_filename,
+          extracted_date: receipts[0].extracted_date,
+          upload_date: receipts[0].upload_date,
+          extracted_amount: receipts[0].extracted_amount,
+          extracted_merchant: receipts[0].extracted_merchant,
+          company_id: receipts[0].company_id
+        });
+      } else {
+        console.log('No receipts found for Excel export - same issue as PDF export');
       }
 
       try {

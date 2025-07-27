@@ -62,6 +62,8 @@ class PDFService {
       groupBy = 'date' // 'date', 'merchant', 'amount'
     } = options;
 
+
+
     const doc = new PDFDocument({ margin: this.pageMargin });
     let yPosition = this.pageMargin;
 
@@ -71,9 +73,15 @@ class PDFService {
     // Group receipts
     const groupedReceipts = this.groupReceipts(receipts, groupBy);
 
-    // Add grouped receipt sections
-    for (const [groupKey, groupReceipts] of Object.entries(groupedReceipts)) {
-      yPosition = this.addReceiptGroup(doc, groupKey, groupReceipts, yPosition);
+    if (Object.keys(groupedReceipts).length === 0) {
+      doc.fontSize(12)
+         .fillColor(this.colors.text)
+         .text('No receipts found for the selected criteria.', this.pageMargin, yPosition);
+    } else {
+      // Add grouped receipt sections
+      for (const [groupKey, groupReceipts] of Object.entries(groupedReceipts)) {
+        yPosition = this.addReceiptGroup(doc, groupKey, groupReceipts, yPosition);
+      }
     }
 
     // Footer

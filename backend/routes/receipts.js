@@ -8,6 +8,13 @@ const { v4: uuidv4 } = require('uuid');
 const Tesseract = require('tesseract.js');
 const moment = require('moment');
 const pdfParse = require('pdf-parse');
+const { authenticateToken, getUserCompanies, requireCompanyAccess, addUserTracking } = require('../middleware/auth');
+
+// Apply authentication middleware to all routes
+router.use(authenticateToken);
+router.use(getUserCompanies);
+router.use(requireCompanyAccess);
+router.use(addUserTracking);
 
 // Import the matching algorithm from matches route
 const findPotentialMatches = (receipt, transactions) => {
@@ -681,17 +688,18 @@ router.get('/', (req, res) => {
     FROM receipts r
     LEFT JOIN matches m ON r.id = m.receipt_id AND m.user_confirmed = 1
     LEFT JOIN transactions t ON m.transaction_id = t.id
+    WHERE r.company_id = ?
     GROUP BY r.id
     ORDER BY r.upload_date DESC
     LIMIT ? OFFSET ?
   `;
 
-  db.all(query, [limit, offset], (err, rows) => {
+  db.all(query, [req.companyId, limit, offset], (err, rows) => {
     if (err) {
       return res.status(500).json({ error: err.message });
     }
 
-    db.get('SELECT COUNT(*) as total FROM receipts', (err, countRow) => {
+    db.get('SELECT COUNT(*) as total FROM receipts WHERE company_id = ?', [req.companyId], (err, countRow) => {
       if (err) {
         return res.status(500).json({ error: err.message });
       }
@@ -718,11 +726,11 @@ router.get('/:id', (req, res) => {
     FROM receipts r
     LEFT JOIN matches m ON r.id = m.receipt_id AND m.user_confirmed = 1
     LEFT JOIN transactions t ON m.transaction_id = t.id
-    WHERE r.id = ?
+    WHERE r.id = ? AND r.company_id = ?
     GROUP BY r.id
   `;
 
-  db.get(query, [req.params.id], (err, row) => {
+  db.get(query, [req.params.id, req.companyId], (err, row) => {
     if (err) {
       return res.status(500).json({ error: err.message });
     }
@@ -749,14 +757,17 @@ router.post('/upload', upload.single('receipt'), async (req, res) => {
 
   // Insert receipt record
   db.run(`
-    INSERT INTO receipts (filename, original_filename, file_path, file_size, processing_status)
-    VALUES (?, ?, ?, ?, ?)
+    INSERT INTO receipts (filename, original_filename, file_path, file_size, processing_status, company_id, created_by, updated_by)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `, [
     receiptData.filename,
     receiptData.original_filename,
     receiptData.file_path,
     receiptData.file_size,
-    receiptData.processing_status
+    receiptData.processing_status,
+    req.companyId,
+    req.userId,
+    req.userId
   ], async function(err) {
     if (err) {
       return res.status(500).json({ error: err.message });
@@ -873,14 +884,15 @@ router.delete('/:id', (req, res) => {
 router.get('/unmatched/list', (req, res) => {
   const query = `
     SELECT * FROM receipts r
-    WHERE r.id NOT IN (
+    WHERE r.company_id = ?
+    AND r.id NOT IN (
       SELECT receipt_id FROM matches WHERE user_confirmed = 1
     )
     AND r.processing_status = 'completed'
     ORDER BY r.upload_date DESC
   `;
 
-  db.all(query, [], (err, rows) => {
+  db.all(query, [req.companyId], (err, rows) => {
     if (err) {
       return res.status(500).json({ error: err.message });
     }
