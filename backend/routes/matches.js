@@ -116,7 +116,7 @@ router.get('/', (req, res) => {
   let whereClause = 'WHERE t.company_id = ? AND r.company_id = ?';
   let queryParams = [req.companyId, req.companyId];
 
-  if (req.user.currentRole !== 'admin') {
+  if (req.user && req.user.currentRole !== 'admin') {
     whereClause += ' AND (t.created_by = ? OR r.created_by = ?)';
     queryParams.push(req.user.id, req.user.id);
   }
@@ -146,7 +146,7 @@ router.get('/pending', (req, res) => {
   let whereClause = 'WHERE m.user_confirmed = FALSE AND t.company_id = ? AND r.company_id = ?';
   let queryParams = [req.companyId, req.companyId];
 
-  if (req.user.currentRole !== 'admin') {
+  if (req.user && req.user.currentRole !== 'admin') {
     whereClause += ' AND (t.created_by = ? OR r.created_by = ?)';
     queryParams.push(req.user.id, req.user.id);
   }

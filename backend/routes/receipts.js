@@ -675,11 +675,21 @@ const processReceiptOCR = async (filePath, mimeType) => {
   }
 };
 
-// Get all receipts
+// Get all receipts with pagination
 router.get('/', (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 20;
   const offset = (page - 1) * limit;
+
+  // DEBUG: Log user information for admin role debugging
+  console.log('=== RECEIPTS ROUTE DEBUG ===');
+  console.log('User:', {
+    id: req.user?.id,
+    email: req.user?.email,
+    currentRole: req.user?.currentRole,
+    currentCompany: req.user?.currentCompany?.name,
+    companyId: req.companyId
+  });
 
   // Build query with proper user/admin filtering
   let whereClause = 'WHERE r.company_id = ?';
@@ -687,10 +697,13 @@ router.get('/', (req, res) => {
   let countParams = [req.companyId];
 
   // If user is not admin, only show their own receipts
-  if (req.user.currentRole !== 'admin') {
+  if (req.user && req.user.currentRole !== 'admin') {
+    console.log('Applying user-level filtering (not admin)');
     whereClause += ' AND r.created_by = ?';
     queryParams.push(req.user.id);
     countParams.push(req.user.id);
+  } else {
+    console.log('Admin user - showing all company receipts');
   }
 
   const query = `
@@ -741,7 +754,7 @@ router.get('/:id', (req, res) => {
   let queryParams = [req.params.id, req.companyId];
 
   // If user is not admin, only show their own receipts
-  if (req.user.currentRole !== 'admin') {
+  if (req.user && req.user.currentRole !== 'admin') {
     whereClause += ' AND r.created_by = ?';
     queryParams.push(req.user.id);
   }
@@ -914,7 +927,7 @@ router.get('/unmatched/list', (req, res) => {
   let queryParams = [req.companyId];
 
   // If user is not admin, only show their own receipts
-  if (req.user.currentRole !== 'admin') {
+  if (req.user && req.user.currentRole !== 'admin') {
     whereClause += ' AND r.created_by = ?';
     queryParams.push(req.user.id);
   }

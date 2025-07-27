@@ -6,6 +6,13 @@ const fs = require('fs');
 const multer = require('multer');
 const path = require('path');
 const moment = require('moment');
+const { authenticateToken, getUserCompanies, requireCompanyAccess, addUserTracking } = require('../middleware/auth');
+
+// Apply authentication middleware to all routes
+router.use(authenticateToken);
+router.use(getUserCompanies);
+router.use(requireCompanyAccess);
+router.use(addUserTracking);
 
 // Configure multer for CSV file uploads
 const csvStorage = multer.diskStorage({
@@ -38,16 +45,30 @@ router.get('/', (req, res) => {
   const limit = parseInt(req.query.limit) || 50;
   const offset = (page - 1) * limit;
 
+  // DEBUG: Log user information for admin role debugging
+  console.log('=== TRANSACTION ROUTE DEBUG ===');
+  console.log('User:', {
+    id: req.user?.id,
+    email: req.user?.email,
+    currentRole: req.user?.currentRole,
+    currentCompany: req.user?.currentCompany?.name,
+    companyId: req.companyId
+  });
+
   // Build query with proper user/admin filtering
   let whereClause = 'WHERE t.company_id = ?';
   let queryParams = [req.companyId];
   let countParams = [req.companyId];
 
   // If user is not admin, only show their own transactions
-  if (req.user.currentRole !== 'admin') {
+  // Add safety check for req.user and currentRole
+  if (req.user && req.user.currentRole !== 'admin') {
+    console.log('Applying user-level filtering (not admin)');
     whereClause += ' AND t.created_by = ?';
     queryParams.push(req.user.id);
     countParams.push(req.user.id);
+  } else {
+    console.log('Admin user - showing all company transactions');
   }
 
   const query = `
@@ -98,7 +119,8 @@ router.get('/:id', (req, res) => {
   let queryParams = [req.params.id, req.companyId];
 
   // If user is not admin, only show their own transactions
-  if (req.user.currentRole !== 'admin') {
+  // Add safety check for req.user and currentRole
+  if (req.user && req.user.currentRole !== 'admin') {
     whereClause += ' AND t.created_by = ?';
     queryParams.push(req.user.id);
   }
@@ -260,8 +282,8 @@ router.post('/import', csvUpload.single('csvFile'), (req, res) => {
       // Insert transactions into database
       const stmt = db.prepare(`
         INSERT OR IGNORE INTO transactions 
-        (transaction_date, description, amount, category, chase_transaction_id, external_transaction_id, sales_tax)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        (transaction_date, description, amount, category, chase_transaction_id, external_transaction_id, sales_tax, company_id, created_by, updated_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       transactions.forEach((transaction) => {
@@ -272,7 +294,10 @@ router.post('/import', csvUpload.single('csvFile'), (req, res) => {
           transaction.category,
           transaction.chase_transaction_id,
           transaction.external_transaction_id,
-          transaction.sales_tax
+          transaction.sales_tax,
+          req.companyId,  // Add company_id
+          req.userId,     // Add created_by  
+          req.userId      // Add updated_by
         ], function(err) {
           if (err) {
             console.error('Error inserting transaction:', err);
