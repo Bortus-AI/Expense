@@ -681,6 +681,17 @@ router.get('/', (req, res) => {
   const limit = parseInt(req.query.limit) || 20;
   const offset = (page - 1) * limit;
 
+  // Admin-specific filtering parameters
+  const userId = req.query.userId ? parseInt(req.query.userId) : null;
+  const startDate = req.query.startDate || null;
+  const endDate = req.query.endDate || null;
+  const processingStatus = req.query.processingStatus || null;
+  const minAmount = req.query.minAmount ? parseFloat(req.query.minAmount) : null;
+  const maxAmount = req.query.maxAmount ? parseFloat(req.query.maxAmount) : null;
+  const status = req.query.status || null; // 'matched', 'unmatched'
+  const sortBy = req.query.sortBy || 'upload_date';
+  const sortOrder = req.query.sortOrder || 'DESC';
+
   // DEBUG: Log user information for admin role debugging
   console.log('=== RECEIPTS ROUTE DEBUG ===');
   console.log('User:', {
@@ -690,6 +701,7 @@ router.get('/', (req, res) => {
     currentCompany: req.user?.currentCompany?.name,
     companyId: req.companyId
   });
+  console.log('Filter params:', { userId, startDate, endDate, processingStatus, minAmount, maxAmount, status, sortBy, sortOrder });
 
   // Build query with proper user/admin filtering
   let whereClause = 'WHERE r.company_id = ?';
@@ -704,18 +716,78 @@ router.get('/', (req, res) => {
     countParams.push(req.user.id);
   } else {
     console.log('Admin user - showing all company receipts');
+    
+    // Admin-specific filters
+    if (userId) {
+      whereClause += ' AND r.created_by = ?';
+      queryParams.push(userId);
+      countParams.push(userId);
+    }
+  }
+
+  // Date range filtering (upload date or extracted date)
+  if (startDate) {
+    whereClause += ' AND (r.upload_date >= ? OR r.extracted_date >= ?)';
+    queryParams.push(startDate, startDate);
+    countParams.push(startDate, startDate);
+  }
+  if (endDate) {
+    whereClause += ' AND (r.upload_date <= ? OR r.extracted_date <= ?)';
+    queryParams.push(endDate, endDate);
+    countParams.push(endDate, endDate);
+  }
+
+  // Processing status filtering
+  if (processingStatus) {
+    whereClause += ' AND r.processing_status = ?';
+    queryParams.push(processingStatus);
+    countParams.push(processingStatus);
+  }
+
+  // Amount range filtering
+  if (minAmount !== null) {
+    whereClause += ' AND r.extracted_amount >= ?';
+    queryParams.push(minAmount);
+    countParams.push(minAmount);
+  }
+  if (maxAmount !== null) {
+    whereClause += ' AND r.extracted_amount <= ?';
+    queryParams.push(maxAmount);
+    countParams.push(maxAmount);
+  }
+
+  // Status filtering (matched/unmatched)
+  if (status === 'matched') {
+    whereClause += ' AND EXISTS (SELECT 1 FROM matches m WHERE m.receipt_id = r.id AND m.user_confirmed = 1)';
+  } else if (status === 'unmatched') {
+    whereClause += ' AND NOT EXISTS (SELECT 1 FROM matches m WHERE m.receipt_id = r.id AND m.user_confirmed = 1)';
+  }
+
+  // Validate sort parameters
+  const allowedSortFields = ['upload_date', 'extracted_date', 'extracted_amount', 'file_size', 'original_filename', 'created_at'];
+  const allowedSortOrders = ['ASC', 'DESC'];
+  
+  if (!allowedSortFields.includes(sortBy)) {
+    sortBy = 'upload_date';
+  }
+  if (!allowedSortOrders.includes(sortOrder.toUpperCase())) {
+    sortOrder = 'DESC';
   }
 
   const query = `
     SELECT r.*, 
            COUNT(m.id) as match_count,
-           GROUP_CONCAT(t.description) as matched_transactions
+           GROUP_CONCAT(t.description) as matched_transactions,
+           u.first_name as created_by_first_name,
+           u.last_name as created_by_last_name,
+           u.email as created_by_email
     FROM receipts r
     LEFT JOIN matches m ON r.id = m.receipt_id AND m.user_confirmed = 1
     LEFT JOIN transactions t ON m.transaction_id = t.id
+    LEFT JOIN users u ON r.created_by = u.id
     ${whereClause}
     GROUP BY r.id
-    ORDER BY r.upload_date DESC
+    ORDER BY r.${sortBy} ${sortOrder}
     LIMIT ? OFFSET ?
   `;
 
@@ -741,6 +813,17 @@ router.get('/', (req, res) => {
           limit,
           total: countRow.total,
           pages: Math.ceil(countRow.total / limit)
+        },
+        filters: {
+          userId,
+          startDate,
+          endDate,
+          processingStatus,
+          minAmount,
+          maxAmount,
+          status,
+          sortBy,
+          sortOrder
         }
       });
     });

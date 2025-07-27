@@ -28,12 +28,12 @@ router.get('/dashboard', (req, res) => {
     return new Promise((resolve, reject) => {
       const query = `
         SELECT 
-          SUM(CASE WHEN t.amount < 0 THEN ABS(t.amount) ELSE 0 END) as total_expenses,
-          SUM(CASE WHEN t.amount < 0 AND m.id IS NOT NULL THEN ABS(t.amount) ELSE 0 END) as matched_expenses,
-          SUM(CASE WHEN t.amount < 0 AND m.id IS NULL THEN ABS(t.amount) ELSE 0 END) as unmatched_expenses,
+          SUM(ABS(t.amount)) as total_expenses,
+          SUM(CASE WHEN m.id IS NOT NULL THEN ABS(t.amount) ELSE 0 END) as matched_expenses,
+          SUM(CASE WHEN m.id IS NULL THEN ABS(t.amount) ELSE 0 END) as unmatched_expenses,
           COUNT(DISTINCT t.id) as total_transactions,
           COUNT(DISTINCT CASE WHEN m.id IS NOT NULL THEN t.id END) as matched_transactions,
-          AVG(CASE WHEN t.amount < 0 THEN ABS(t.amount) END) as avg_transaction_amount
+          AVG(ABS(t.amount)) as avg_transaction_amount
         FROM transactions t
         LEFT JOIN matches m ON t.id = m.transaction_id AND m.user_confirmed = 1
         WHERE t.company_id = ? AND t.transaction_date >= ?
@@ -68,7 +68,7 @@ router.get('/dashboard', (req, res) => {
           COUNT(*) as transaction_count,
           AVG(ABS(t.amount)) as avg_amount
         FROM transactions t
-        WHERE t.company_id = ? AND t.amount < 0 AND t.transaction_date >= ?
+        WHERE t.company_id = ? AND t.transaction_date >= ?
         GROUP BY t.category
         HAVING t.category IS NOT NULL AND t.category != ''
         ORDER BY total_amount DESC
@@ -91,7 +91,7 @@ router.get('/dashboard', (req, res) => {
       const query = `
         SELECT 
           strftime('%Y-%m', t.transaction_date) as month,
-          SUM(CASE WHEN t.amount < 0 THEN ABS(t.amount) ELSE 0 END) as total_expenses,
+          SUM(ABS(t.amount)) as total_expenses,
           COUNT(*) as transaction_count,
           COUNT(CASE WHEN m.id IS NOT NULL THEN 1 END) as matched_count
         FROM transactions t
@@ -125,7 +125,7 @@ router.get('/dashboard', (req, res) => {
           COUNT(DISTINCT m.id) as match_count,
           MAX(t.created_at) as last_transaction,
           MAX(r.created_at) as last_receipt,
-          SUM(CASE WHEN t.amount < 0 THEN ABS(t.amount) ELSE 0 END) as total_amount
+          SUM(ABS(t.amount)) as total_amount
         FROM users u
         LEFT JOIN user_companies uc ON u.id = uc.user_id
         LEFT JOIN transactions t ON u.id = t.created_by AND t.company_id = ?
@@ -211,7 +211,7 @@ router.get('/dashboard', (req, res) => {
           u.first_name || ' ' || u.last_name as user_name,
           'Imported ' || COUNT(*) || ' transactions' as description,
           t.created_by as user_id,
-          SUM(CASE WHEN t.amount < 0 THEN ABS(t.amount) ELSE 0 END) as total_amount
+          SUM(ABS(t.amount)) as total_amount
         FROM transactions t
         JOIN users u ON t.created_by = u.id
         WHERE t.company_id = ? AND t.created_at >= datetime('now', '-7 days')

@@ -39,14 +39,17 @@ api.interceptors.response.use(
   }
 );
 
-// Transaction API
+// Transaction API with enhanced filtering
 export const transactionAPI = {
-  getAll: (page = 1, limit = 50) => 
-    api.get(`/transactions?page=${page}&limit=${limit}`),
-  
-  getById: (id) => 
-    api.get(`/transactions/${id}`),
-  
+  getAll: (page = 1, limit = 50, filters = {}) => {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+      ...filters
+    });
+    return api.get(`/transactions?${params}`);
+  },
+  getById: (id) => api.get(`/transactions/${id}`),
   importCSV: (file) => {
     const formData = new FormData();
     formData.append('csvFile', file);
@@ -54,22 +57,20 @@ export const transactionAPI = {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
   },
-  
-  update: (id, data) => 
-    api.put(`/transactions/${id}`, data),
-  
-  delete: (id) => 
-    api.delete(`/transactions/${id}`)
+  delete: (id) => api.delete(`/transactions/${id}`)
 };
 
-// Receipt API
+// Receipt API with enhanced filtering
 export const receiptAPI = {
-  getAll: (page = 1, limit = 20) => 
-    api.get(`/receipts?page=${page}&limit=${limit}`),
-  
-  getById: (id) => 
-    api.get(`/receipts/${id}`),
-  
+  getAll: (page = 1, limit = 20, filters = {}) => {
+    const params = new URLSearchParams({
+      page: page.toString(),
+      limit: limit.toString(),
+      ...filters
+    });
+    return api.get(`/receipts?${params}`);
+  },
+  getById: (id) => api.get(`/receipts/${id}`),
   upload: (file) => {
     const formData = new FormData();
     formData.append('receipt', file);
@@ -77,15 +78,8 @@ export const receiptAPI = {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
   },
-  
-  getUnmatched: () => 
-    api.get('/receipts/unmatched/list'),
-  
-  update: (id, data) => 
-    api.put(`/receipts/${id}`, data),
-  
-  delete: (id) => 
-    api.delete(`/receipts/${id}`)
+  update: (id, data) => api.put(`/receipts/${id}`, data),
+  delete: (id) => api.delete(`/receipts/${id}`)
 };
 
 // Match API
@@ -145,6 +139,22 @@ export const healthCheck = () =>
 export const analyticsAPI = {
   getDashboard: () => api.get('/analytics/dashboard'),
   exportData: (params = {}) => api.get('/analytics/export', { params })
+};
+
+// Company API
+export const companyAPI = {
+  getDetails: () => api.get('/companies/current'),
+  updateSettings: (settings) => api.put('/companies/current', settings),
+  inviteUser: (inviteData) => api.post('/companies/current/invite', inviteData),
+  getUsers: () => api.get('/companies/current/users'),
+  getUsersForFilter: () => {
+    // Use the /companies/current/users/filter endpoint instead of the ID-based one
+    // This will use the user's current company context from the backend
+    console.log('getUsersForFilter called - using current company endpoint');
+    return api.get('/companies/current/users/filter');
+  },
+  updateUserRole: (userId, role) => api.put(`/companies/current/users/${userId}/role`, { role }),
+  removeUser: (userId) => api.delete(`/companies/current/users/${userId}`)
 };
 
 // Export both as named export and default export

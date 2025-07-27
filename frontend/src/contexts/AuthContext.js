@@ -157,14 +157,8 @@ export const AuthProvider = ({ children }) => {
       axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
       
       const decoded = jwtDecode(accessToken);
-      setUser({
-        id: decoded.id,
-        email: decoded.email,
-        firstName: decoded.firstName,
-        lastName: decoded.lastName
-      });
-
-      // Load user's companies
+      
+      // Load user's companies first to get role information
       const response = await api.get('/companies');
       
       if (response.data && response.data.companies) {
@@ -176,9 +170,29 @@ export const AuthProvider = ({ children }) => {
           const currentComp = savedCompany || response.data.companies[0];
           setCurrentCompany(currentComp);
           
+          // Set user with role information from current company
+          setUser({
+            id: decoded.id,
+            email: decoded.email,
+            firstName: decoded.firstName,
+            lastName: decoded.lastName,
+            currentRole: currentComp.role,
+            currentCompany: currentComp
+          });
+          
           // Set company header
           axios.defaults.headers.common['X-Company-ID'] = currentComp.id.toString();
-          console.log('User data loaded successfully, current company:', currentComp.name);
+          console.log('User data loaded successfully, current company:', currentComp.name, 'role:', currentComp.role);
+        } else {
+          // Set user without role if no companies
+          setUser({
+            id: decoded.id,
+            email: decoded.email,
+            firstName: decoded.firstName,
+            lastName: decoded.lastName,
+            currentRole: null,
+            currentCompany: null
+          });
         }
       } else {
         console.error('Invalid response format from /companies endpoint');
@@ -240,21 +254,26 @@ export const AuthProvider = ({ children }) => {
       localStorage.setItem('refreshToken', refreshToken);
 
       // Set user data
-      setUser(user);
+      const currentComp = companies.length > 0 ? companies[0] : null;
+      setUser({
+        ...user,
+        currentRole: currentComp?.role || null,
+        currentCompany: currentComp
+      });
       setCompanies(companies);
       
       if (companies.length > 0) {
-        setCurrentCompany(companies[0]);
-        localStorage.setItem('currentCompanyId', companies[0].id.toString());
+        setCurrentCompany(currentComp);
+        localStorage.setItem('currentCompanyId', currentComp.id.toString());
       }
 
       // Configure axios defaults immediately
       axios.defaults.headers.common['Authorization'] = `Bearer ${accessToken}`;
       if (companies.length > 0) {
-        axios.defaults.headers.common['X-Company-ID'] = companies[0].id.toString();
+        axios.defaults.headers.common['X-Company-ID'] = currentComp.id.toString();
       }
 
-      console.log('Login setup completed successfully');
+      console.log('Login setup completed successfully, role:', currentComp?.role);
       return { success: true, user, companies };
     } catch (error) {
       console.error('Login failed:', error);
@@ -298,6 +317,17 @@ export const AuthProvider = ({ children }) => {
   const switchCompany = (company) => {
     setCurrentCompany(company);
     localStorage.setItem('currentCompanyId', company.id.toString());
+    
+    // Update user object with new role and company
+    setUser(prev => ({
+      ...prev,
+      currentRole: company.role,
+      currentCompany: company
+    }));
+    
+    // Update axios header
+    axios.defaults.headers.common['X-Company-ID'] = company.id.toString();
+    console.log('Switched to company:', company.name, 'role:', company.role);
   };
 
   // Update user profile

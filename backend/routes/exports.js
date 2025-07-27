@@ -73,7 +73,11 @@ router.post('/pdf/transactions', async (req, res) => {
       endDate,
       includeMatched = true,
       includeUnmatched = true,
-      title = 'Transaction Summary Report'
+      title = 'Transaction Summary Report',
+      userId = null, // New parameter for user-specific exports
+      category = null, // New parameter for category filtering
+      minAmount = null, // New parameter for minimum amount
+      maxAmount = null  // New parameter for maximum amount
     } = req.body;
 
     // Debug logging
@@ -81,7 +85,7 @@ router.post('/pdf/transactions', async (req, res) => {
     console.log('User:', req.user?.email);
     console.log('Company ID:', req.companyId);
     console.log('Current Company:', req.user?.currentCompany?.name);
-    console.log('Request body:', { startDate, endDate, includeMatched, includeUnmatched, title });
+    console.log('Request body:', { startDate, endDate, includeMatched, includeUnmatched, title, userId, category, minAmount, maxAmount });
 
     if (!req.companyId) {
       console.error('No company ID found in request');
@@ -92,14 +96,49 @@ router.post('/pdf/transactions', async (req, res) => {
     let query = `
       SELECT t.*, 
              COUNT(m.id) as receipt_count,
-             GROUP_CONCAT(r.original_filename) as receipt_filenames
+             GROUP_CONCAT(r.original_filename) as receipt_filenames,
+             u.first_name as created_by_first_name,
+             u.last_name as created_by_last_name,
+             u.email as created_by_email
       FROM transactions t
       LEFT JOIN matches m ON t.id = m.transaction_id AND m.match_status = 'confirmed'
       LEFT JOIN receipts r ON m.receipt_id = r.id
+      LEFT JOIN users u ON t.created_by = u.id
       WHERE t.company_id = ?
     `;
     
     const params = [req.companyId];
+
+    // Apply user filtering (admin only)
+    if (userId && req.user.currentRole === 'admin') {
+      query += ' AND t.created_by = ?';
+      params.push(userId);
+      console.log('Filtering for specific user:', userId);
+    } else if (req.user.currentRole !== 'admin') {
+      // Non-admin users can only export their own transactions
+      query += ' AND t.created_by = ?';
+      params.push(req.user.id);
+      console.log('Non-admin user - filtering for own transactions only');
+    }
+
+    // Apply category filtering
+    if (category) {
+      query += ' AND t.category = ?';
+      params.push(category);
+      console.log('Filtering by category:', category);
+    }
+
+    // Apply amount range filtering
+    if (minAmount !== null) {
+      query += ' AND t.amount >= ?';
+      params.push(minAmount);
+      console.log('Filtering by minimum amount:', minAmount);
+    }
+    if (maxAmount !== null) {
+      query += ' AND t.amount <= ?';
+      params.push(maxAmount);
+      console.log('Filtering by maximum amount:', maxAmount);
+    }
 
     // Apply match status filtering
     if (includeMatched && !includeUnmatched) {
@@ -143,7 +182,8 @@ router.post('/pdf/transactions', async (req, res) => {
           date: transactions[0].transaction_date,
           description: transactions[0].description,
           amount: transactions[0].amount,
-          company_id: transactions[0].company_id
+          company_id: transactions[0].company_id,
+          created_by: transactions[0].created_by_email
         });
       }
 
@@ -154,7 +194,11 @@ router.post('/pdf/transactions', async (req, res) => {
           endDate,
           title,
           includeMatched,
-          includeUnmatched
+          includeUnmatched,
+          userId,
+          category,
+          minAmount,
+          maxAmount
         });
 
         // Set response headers for PDF download
@@ -185,21 +229,60 @@ router.post('/excel/transactions', async (req, res) => {
       startDate,
       endDate,
       includeMatched = true,
-      includeUnmatched = true
+      includeUnmatched = true,
+      userId = null, // New parameter for user-specific exports
+      category = null, // New parameter for category filtering
+      minAmount = null, // New parameter for minimum amount
+      maxAmount = null  // New parameter for maximum amount
     } = req.body;
 
     // Build query with company scoping, date filtering, and match status filtering
     let query = `
       SELECT t.*, 
              COUNT(m.id) as receipt_count,
-             GROUP_CONCAT(r.original_filename) as receipt_filenames
+             GROUP_CONCAT(r.original_filename) as receipt_filenames,
+             u.first_name as created_by_first_name,
+             u.last_name as created_by_last_name,
+             u.email as created_by_email
       FROM transactions t
       LEFT JOIN matches m ON t.id = m.transaction_id AND m.match_status = 'confirmed'
       LEFT JOIN receipts r ON m.receipt_id = r.id
+      LEFT JOIN users u ON t.created_by = u.id
       WHERE t.company_id = ?
     `;
     
     const params = [req.companyId];
+
+    // Apply user filtering (admin only)
+    if (userId && req.user.currentRole === 'admin') {
+      query += ' AND t.created_by = ?';
+      params.push(userId);
+      console.log('Filtering for specific user:', userId);
+    } else if (req.user.currentRole !== 'admin') {
+      // Non-admin users can only export their own transactions
+      query += ' AND t.created_by = ?';
+      params.push(req.user.id);
+      console.log('Non-admin user - filtering for own transactions only');
+    }
+
+    // Apply category filtering
+    if (category) {
+      query += ' AND t.category = ?';
+      params.push(category);
+      console.log('Filtering by category:', category);
+    }
+
+    // Apply amount range filtering
+    if (minAmount !== null) {
+      query += ' AND t.amount >= ?';
+      params.push(minAmount);
+      console.log('Filtering by minimum amount:', minAmount);
+    }
+    if (maxAmount !== null) {
+      query += ' AND t.amount <= ?';
+      params.push(maxAmount);
+      console.log('Filtering by maximum amount:', maxAmount);
+    }
 
     // Apply match status filtering
     if (includeMatched && !includeUnmatched) {
@@ -235,7 +318,11 @@ router.post('/excel/transactions', async (req, res) => {
           startDate,
           endDate,
           includeMatched,
-          includeUnmatched
+          includeUnmatched,
+          userId,
+          category,
+          minAmount,
+          maxAmount
         });
 
         // Set response headers for Excel download

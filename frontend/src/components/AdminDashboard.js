@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { analyticsAPI } from '../services/api';
+import { analyticsAPI, companyAPI } from '../services/api';
 import { toast } from 'react-toastify';
 
 const AdminDashboard = ({ analyticsData, systemHealth, processingMetrics }) => {
   const [activeView, setActiveView] = useState('overview');
   const [timeRange, setTimeRange] = useState('30d');
   const [refreshInterval, setRefreshInterval] = useState(null);
+  const [companyUsers, setCompanyUsers] = useState([]);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
 
   useEffect(() => {
     // Set up auto-refresh every 2 minutes for admin dashboard
@@ -16,12 +19,24 @@ const AdminDashboard = ({ analyticsData, systemHealth, processingMetrics }) => {
     }, 2 * 60 * 1000); // 2 minutes
     setRefreshInterval(interval);
 
+    // Load company users for filtering
+    loadCompanyUsers();
+
     return () => {
       if (refreshInterval) {
         clearInterval(refreshInterval);
       }
     };
   }, []);
+
+  const loadCompanyUsers = async () => {
+    try {
+      const response = await companyAPI.getUsersForFilter();
+      setCompanyUsers(response.data.users || []);
+    } catch (error) {
+      console.error('Error loading company users:', error);
+    }
+  };
 
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
@@ -53,6 +68,14 @@ const AdminDashboard = ({ analyticsData, systemHealth, processingMetrics }) => {
     return Math.round((processingRate + matchRate + successRate) / 3);
   };
 
+  const handleUserFilterChange = (userId) => {
+    setSelectedUser(userId);
+    // Trigger dashboard refresh with user filter
+    window.dispatchEvent(new CustomEvent('refreshDashboard', { 
+      detail: { userId: userId || null } 
+    }));
+  };
+
   return (
     <div className="admin-dashboard">
       {/* Admin Header */}
@@ -77,6 +100,59 @@ const AdminDashboard = ({ analyticsData, systemHealth, processingMetrics }) => {
               <span className="spinner"></span>
               Auto-refresh enabled
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* User Filter Section */}
+      <div className="card enhanced mb-3">
+        <div className="card-header">
+          <h3 className="card-title">User Filter</h3>
+          <button 
+            className="btn btn-sm btn-secondary"
+            onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+          >
+            {showAdvancedFilters ? 'Hide' : 'Show'} Advanced Filters
+          </button>
+        </div>
+        <div className="p-3">
+          <div className="flex gap-2 flex-wrap">
+            <select 
+              value={selectedUser || ''} 
+              onChange={(e) => handleUserFilterChange(e.target.value || null)}
+              className="form-select"
+            >
+              <option value="">All Users</option>
+              {companyUsers.map(user => (
+                <option key={user.id} value={user.id}>
+                  {user.fullName} ({user.role})
+                </option>
+              ))}
+            </select>
+            
+            {showAdvancedFilters && (
+              <div className="advanced-filters">
+                <div className="grid grid-3 gap-2">
+                  <input 
+                    type="date" 
+                    placeholder="Start Date"
+                    className="form-input"
+                  />
+                  <input 
+                    type="date" 
+                    placeholder="End Date"
+                    className="form-input"
+                  />
+                  <select className="form-select">
+                    <option value="">All Categories</option>
+                    <option value="food">Food & Dining</option>
+                    <option value="transportation">Transportation</option>
+                    <option value="utilities">Utilities</option>
+                    <option value="entertainment">Entertainment</option>
+                  </select>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>

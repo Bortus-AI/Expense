@@ -75,6 +75,17 @@ router.get('/', (req, res) => {
   const limit = parseInt(req.query.limit) || 50;
   const offset = (page - 1) * limit;
 
+  // Admin-specific filtering parameters
+  const userId = req.query.userId ? parseInt(req.query.userId) : null;
+  const startDate = req.query.startDate || null;
+  const endDate = req.query.endDate || null;
+  const category = req.query.category || null;
+  const minAmount = req.query.minAmount ? parseFloat(req.query.minAmount) : null;
+  const maxAmount = req.query.maxAmount ? parseFloat(req.query.maxAmount) : null;
+  const status = req.query.status || null; // 'matched', 'unmatched'
+  const sortBy = req.query.sortBy || 'transaction_date';
+  const sortOrder = req.query.sortOrder || 'DESC';
+
   // DEBUG: Log user information for admin role debugging
   console.log('=== TRANSACTION ROUTE DEBUG ===');
   console.log('User:', {
@@ -84,6 +95,7 @@ router.get('/', (req, res) => {
     currentCompany: req.user?.currentCompany?.name,
     companyId: req.companyId
   });
+  console.log('Filter params:', { userId, startDate, endDate, category, minAmount, maxAmount, status, sortBy, sortOrder });
 
   // Build query with proper user/admin filtering
   let whereClause = 'WHERE t.company_id = ?';
@@ -91,7 +103,6 @@ router.get('/', (req, res) => {
   let countParams = [req.companyId];
 
   // If user is not admin, only show their own transactions
-  // Add safety check for req.user and currentRole
   if (req.user && req.user.currentRole !== 'admin') {
     console.log('Applying user-level filtering (not admin)');
     whereClause += ' AND t.created_by = ?';
@@ -99,18 +110,78 @@ router.get('/', (req, res) => {
     countParams.push(req.user.id);
   } else {
     console.log('Admin user - showing all company transactions');
+    
+    // Admin-specific filters
+    if (userId) {
+      whereClause += ' AND t.created_by = ?';
+      queryParams.push(userId);
+      countParams.push(userId);
+    }
+  }
+
+  // Date range filtering
+  if (startDate) {
+    whereClause += ' AND t.transaction_date >= ?';
+    queryParams.push(startDate);
+    countParams.push(startDate);
+  }
+  if (endDate) {
+    whereClause += ' AND t.transaction_date <= ?';
+    queryParams.push(endDate);
+    countParams.push(endDate);
+  }
+
+  // Category filtering
+  if (category) {
+    whereClause += ' AND t.category = ?';
+    queryParams.push(category);
+    countParams.push(category);
+  }
+
+  // Amount range filtering
+  if (minAmount !== null) {
+    whereClause += ' AND t.amount >= ?';
+    queryParams.push(minAmount);
+    countParams.push(minAmount);
+  }
+  if (maxAmount !== null) {
+    whereClause += ' AND t.amount <= ?';
+    queryParams.push(maxAmount);
+    countParams.push(maxAmount);
+  }
+
+  // Status filtering (matched/unmatched)
+  if (status === 'matched') {
+    whereClause += ' AND EXISTS (SELECT 1 FROM matches m WHERE m.transaction_id = t.id AND m.user_confirmed = 1)';
+  } else if (status === 'unmatched') {
+    whereClause += ' AND NOT EXISTS (SELECT 1 FROM matches m WHERE m.transaction_id = t.id AND m.user_confirmed = 1)';
+  }
+
+  // Validate sort parameters
+  const allowedSortFields = ['transaction_date', 'description', 'amount', 'category', 'created_at'];
+  const allowedSortOrders = ['ASC', 'DESC'];
+  
+  if (!allowedSortFields.includes(sortBy)) {
+    sortBy = 'transaction_date';
+  }
+  if (!allowedSortOrders.includes(sortOrder.toUpperCase())) {
+    sortOrder = 'DESC';
   }
 
   const query = `
     SELECT t.*, 
            COUNT(m.id) as receipt_count,
-           GROUP_CONCAT(r.original_filename) as receipts
+           GROUP_CONCAT(r.original_filename) as receipts,
+           u.first_name as created_by_first_name,
+           u.last_name as created_by_last_name,
+           u.email as created_by_email
     FROM transactions t
     LEFT JOIN matches m ON t.id = m.transaction_id AND m.user_confirmed = 1
     LEFT JOIN receipts r ON m.receipt_id = r.id
+    LEFT JOIN users u ON t.created_by = u.id
     ${whereClause}
     GROUP BY t.id
-    ORDER BY t.transaction_date DESC
+    ORDER BY t.${sortBy} ${sortOrder}
     LIMIT ? OFFSET ?
   `;
 
@@ -136,6 +207,17 @@ router.get('/', (req, res) => {
           limit,
           total: countRow.total,
           pages: Math.ceil(countRow.total / limit)
+        },
+        filters: {
+          userId,
+          startDate,
+          endDate,
+          category,
+          minAmount,
+          maxAmount,
+          status,
+          sortBy,
+          sortOrder
         }
       });
     });

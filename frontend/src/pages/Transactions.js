@@ -1,21 +1,65 @@
 import React, { useState, useEffect } from 'react';
-import { transactionAPI } from '../services/api';
+import { transactionAPI, companyAPI, api } from '../services/api';
 import { toast } from 'react-toastify';
+import { useAuth } from '../contexts/AuthContext';
 
 const Transactions = () => {
+  const { user } = useAuth();
   const [transactions, setTransactions] = useState([]);
   const [pagination, setPagination] = useState({});
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
+  
+  // Admin filtering state
+  const [companyUsers, setCompanyUsers] = useState([]);
+  const [filters, setFilters] = useState({
+    userId: '',
+    startDate: '',
+    endDate: '',
+    category: '',
+    minAmount: '',
+    maxAmount: '',
+    status: '',
+    sortBy: 'transaction_date',
+    sortOrder: 'DESC'
+  });
+  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     loadTransactions(currentPage);
-  }, [currentPage]);
+    // Only load company users if user is admin and fully loaded
+    if (user?.currentRole === 'admin' && user?.currentCompany?.id) {
+      loadCompanyUsers();
+    }
+  }, [currentPage, filters, user?.currentRole, user?.currentCompany?.id]);
+
+  const loadCompanyUsers = async () => {
+    try {
+      console.log('Loading company users for filtering...');
+      console.log('User role:', user?.currentRole);
+      console.log('Company ID:', user?.currentCompany?.id);
+      
+      const response = await companyAPI.getUsersForFilter();
+      console.log('Company users response:', response.data);
+      console.log('Users array:', response.data.users);
+      
+      setCompanyUsers(response.data.users || []);
+    } catch (error) {
+      console.error('Error loading company users:', error);
+      console.error('Error response:', error.response?.data);
+      console.error('Error status:', error.response?.status);
+    }
+  };
 
   const loadTransactions = async (page = 1) => {
     setLoading(true);
     try {
-      const response = await transactionAPI.getAll(page, 50);
+      // Only include non-empty filters
+      const activeFilters = Object.fromEntries(
+        Object.entries(filters).filter(([key, value]) => value !== '')
+      );
+      
+      const response = await transactionAPI.getAll(page, 50, activeFilters);
       setTransactions(response.data.transactions || []);
       setPagination(response.data.pagination || {});
     } catch (error) {
@@ -24,6 +68,29 @@ const Transactions = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleFilterChange = (key, value) => {
+    setFilters(prev => ({
+      ...prev,
+      [key]: value
+    }));
+    setCurrentPage(1); // Reset to first page when filters change
+  };
+
+  const clearFilters = () => {
+    setFilters({
+      userId: '',
+      startDate: '',
+      endDate: '',
+      category: '',
+      minAmount: '',
+      maxAmount: '',
+      status: '',
+      sortBy: 'transaction_date',
+      sortOrder: 'DESC'
+    });
+    setCurrentPage(1);
   };
 
   const handlePageChange = (newPage) => {
@@ -59,11 +126,10 @@ const Transactions = () => {
   };
 
   const handleDelete = async (transactionId, description) => {
-    if (window.confirm(`Are you sure you want to delete this transaction?\n\n"${description}"\n\nThis action cannot be undone.`)) {
+    if (window.confirm(`Are you sure you want to delete the transaction "${description}"?`)) {
       try {
         await transactionAPI.delete(transactionId);
         toast.success('Transaction deleted successfully');
-        // Refresh the current page of transactions
         loadTransactions(currentPage);
       } catch (error) {
         console.error('Error deleting transaction:', error);
@@ -74,26 +140,177 @@ const Transactions = () => {
 
   if (loading) {
     return (
-      <div className="flex-center" style={{ height: '50vh' }}>
+      <div className="loading-container">
         <div className="spinner"></div>
+        <p>Loading transactions...</p>
       </div>
     );
   }
 
   return (
-    <div>
-      <div className="flex-between mb-3">
+    <div className="transactions-page">
+      <div className="page-header">
         <h1>Transactions</h1>
-        <div className="text-sm text-gray">
-          Total: {pagination.total || 0} transactions
-        </div>
+        <p>Manage and review all company transactions</p>
       </div>
+
+      {/* Admin Filter Section */}
+      {user?.currentRole === 'admin' && (
+        <div className="card mb-3">
+          <div className="card-header">
+            <h3 className="card-title">Admin Filters</h3>
+            <button 
+              className="btn btn-sm btn-secondary"
+              onClick={() => setShowFilters(!showFilters)}
+            >
+              {showFilters ? 'Hide' : 'Show'} Filters
+            </button>
+          </div>
+          {showFilters && (
+            <div className="p-3">
+              <div className="grid grid-3 gap-3">
+                <div className="form-group">
+                  <label className="form-label">User</label>
+                  <select 
+                    value={filters.userId} 
+                    onChange={(e) => handleFilterChange('userId', e.target.value)}
+                    className="form-select"
+                  >
+                    <option value="">All Users</option>
+                    {companyUsers.map(user => (
+                      <option key={user.id} value={user.id}>
+                        {user.fullName} ({user.role})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div className="form-group">
+                  <label className="form-label">Start Date</label>
+                  <input 
+                    type="date" 
+                    value={filters.startDate}
+                    onChange={(e) => handleFilterChange('startDate', e.target.value)}
+                    className="form-input"
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label className="form-label">End Date</label>
+                  <input 
+                    type="date" 
+                    value={filters.endDate}
+                    onChange={(e) => handleFilterChange('endDate', e.target.value)}
+                    className="form-input"
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label className="form-label">Category</label>
+                  <select 
+                    value={filters.category} 
+                    onChange={(e) => handleFilterChange('category', e.target.value)}
+                    className="form-select"
+                  >
+                    <option value="">All Categories</option>
+                    <option value="food">Food & Dining</option>
+                    <option value="transportation">Transportation</option>
+                    <option value="utilities">Utilities</option>
+                    <option value="entertainment">Entertainment</option>
+                    <option value="shopping">Shopping</option>
+                    <option value="healthcare">Healthcare</option>
+                  </select>
+                </div>
+                
+                <div className="form-group">
+                  <label className="form-label">Min Amount</label>
+                  <input 
+                    type="number" 
+                    step="0.01"
+                    value={filters.minAmount}
+                    onChange={(e) => handleFilterChange('minAmount', e.target.value)}
+                    className="form-input"
+                    placeholder="0.00"
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label className="form-label">Max Amount</label>
+                  <input 
+                    type="number" 
+                    step="0.01"
+                    value={filters.maxAmount}
+                    onChange={(e) => handleFilterChange('maxAmount', e.target.value)}
+                    className="form-input"
+                    placeholder="0.00"
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label className="form-label">Status</label>
+                  <select 
+                    value={filters.status} 
+                    onChange={(e) => handleFilterChange('status', e.target.value)}
+                    className="form-select"
+                  >
+                    <option value="">All Status</option>
+                    <option value="matched">Matched</option>
+                    <option value="unmatched">Unmatched</option>
+                  </select>
+                </div>
+                
+                <div className="form-group">
+                  <label className="form-label">Sort By</label>
+                  <select 
+                    value={filters.sortBy} 
+                    onChange={(e) => handleFilterChange('sortBy', e.target.value)}
+                    className="form-select"
+                  >
+                    <option value="transaction_date">Date</option>
+                    <option value="description">Description</option>
+                    <option value="amount">Amount</option>
+                    <option value="category">Category</option>
+                    <option value="created_at">Created</option>
+                  </select>
+                </div>
+                
+                <div className="form-group">
+                  <label className="form-label">Sort Order</label>
+                  <select 
+                    value={filters.sortOrder} 
+                    onChange={(e) => handleFilterChange('sortOrder', e.target.value)}
+                    className="form-select"
+                  >
+                    <option value="DESC">Descending</option>
+                    <option value="ASC">Ascending</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div className="flex gap-2 mt-3">
+                <button 
+                  className="btn btn-primary"
+                  onClick={() => loadTransactions(1)}
+                >
+                  Apply Filters
+                </button>
+                <button 
+                  className="btn btn-secondary"
+                  onClick={clearFilters}
+                >
+                  Clear Filters
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="card">
         <div className="card-header">
           <h3 className="card-title">All Transactions</h3>
           <p className="card-subtitle">
-            Imported Chase credit card transactions
+            {user?.currentRole === 'admin' ? 'All company transactions' : 'Your transactions'}
           </p>
         </div>
 
@@ -111,6 +328,7 @@ const Transactions = () => {
                     <th>Amount</th>
                     <th>Receipt Status</th>
                     <th>Receipts</th>
+                    {user?.currentRole === 'admin' && <th>Created By</th>}
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -151,11 +369,23 @@ const Transactions = () => {
                           <span className="text-gray">None</span>
                         )}
                       </td>
+                      {user?.currentRole === 'admin' && (
+                        <td>
+                          <div className="text-sm">
+                            {transaction.created_by_first_name && transaction.created_by_last_name ? (
+                              <span>
+                                {transaction.created_by_first_name} {transaction.created_by_last_name}
+                              </span>
+                            ) : (
+                              <span className="text-gray">Unknown</span>
+                            )}
+                          </div>
+                        </td>
+                      )}
                       <td>
                         <button
-                          onClick={() => handleDelete(transaction.id, transaction.description)}
                           className="btn btn-sm btn-danger"
-                          title="Delete transaction"
+                          onClick={() => handleDelete(transaction.id, transaction.description)}
                         >
                           Delete
                         </button>
@@ -168,22 +398,20 @@ const Transactions = () => {
 
             {/* Pagination */}
             {pagination.pages > 1 && (
-              <div className="flex-center mt-3 gap-2">
+              <div className="pagination">
                 <button
                   className="btn btn-sm btn-secondary"
-                  disabled={currentPage <= 1}
+                  disabled={currentPage === 1}
                   onClick={() => handlePageChange(currentPage - 1)}
                 >
                   Previous
                 </button>
-                
-                <span className="text-sm">
-                  Page {currentPage} of {pagination.pages}
+                <span className="pagination-info">
+                  Page {currentPage} of {pagination.pages} ({pagination.total} total)
                 </span>
-                
                 <button
                   className="btn btn-sm btn-secondary"
-                  disabled={currentPage >= pagination.pages}
+                  disabled={currentPage === pagination.pages}
                   onClick={() => handlePageChange(currentPage + 1)}
                 >
                   Next
@@ -192,9 +420,13 @@ const Transactions = () => {
             )}
           </>
         ) : (
-          <div className="text-center text-gray">
-            <p>No transactions found</p>
-            <p className="text-sm">Import your Chase CSV file to get started</p>
+          <div className="empty-state">
+            <p>No transactions found.</p>
+            {user?.currentRole === 'admin' && filters.userId && (
+              <p className="text-sm text-gray">
+                Try adjusting your filters or selecting a different user.
+              </p>
+            )}
           </div>
         )}
       </div>

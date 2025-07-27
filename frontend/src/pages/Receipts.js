@@ -1,23 +1,67 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { receiptAPI } from '../services/api';
+import { receiptAPI, companyAPI, api } from '../services/api';
 import { toast } from 'react-toastify';
+import { useAuth } from '../contexts/AuthContext';
 
 const Receipts = () => {
+  const { user } = useAuth();
   const [receipts, setReceipts] = useState([]);
   const [pagination, setPagination] = useState({});
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  
+  // Admin filtering state
+  const [companyUsers, setCompanyUsers] = useState([]);
+  const [filters, setFilters] = useState({
+    userId: '',
+    startDate: '',
+    endDate: '',
+    processingStatus: '',
+    minAmount: '',
+    maxAmount: '',
+    status: '',
+    sortBy: 'upload_date',
+    sortOrder: 'DESC'
+  });
+  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     loadReceipts(currentPage);
-  }, [currentPage]);
+    // Only load company users if user is admin and fully loaded
+    if (user?.currentRole === 'admin' && user?.currentCompany?.id) {
+      loadCompanyUsers();
+    }
+  }, [currentPage, filters, user?.currentRole, user?.currentCompany?.id]);
+
+  const loadCompanyUsers = async () => {
+    try {
+      console.log('Loading company users for receipts filtering...');
+      console.log('User role:', user?.currentRole);
+      console.log('Company ID:', user?.currentCompany?.id);
+      
+      const response = await companyAPI.getUsersForFilter();
+      console.log('Company users response for receipts:', response.data);
+      console.log('Users array for receipts:', response.data.users);
+      
+      setCompanyUsers(response.data.users || []);
+    } catch (error) {
+      console.error('Error loading company users for receipts:', error);
+      console.error('Error response:', error.response?.data);
+      console.error('Error status:', error.response?.status);
+    }
+  };
 
   const loadReceipts = async (page = 1) => {
     setLoading(true);
     try {
-      const response = await receiptAPI.getAll(page, 20);
+      // Only include non-empty filters
+      const activeFilters = Object.fromEntries(
+        Object.entries(filters).filter(([key, value]) => value !== '')
+      );
+      
+      const response = await receiptAPI.getAll(page, 20, activeFilters);
       setReceipts(response.data.receipts || []);
       setPagination(response.data.pagination || {});
     } catch (error) {
@@ -28,48 +72,39 @@ const Receipts = () => {
     }
   };
 
+  const handleFilterChange = (key, value) => {
+    setFilters(prev => ({
+      ...prev,
+      [key]: value
+    }));
+    setCurrentPage(1); // Reset to first page when filters change
+  };
+
+  const clearFilters = () => {
+    setFilters({
+      userId: '',
+      startDate: '',
+      endDate: '',
+      processingStatus: '',
+      minAmount: '',
+      maxAmount: '',
+      status: '',
+      sortBy: 'upload_date',
+      sortOrder: 'DESC'
+    });
+    setCurrentPage(1);
+  };
+
   const onDrop = useCallback(async (acceptedFiles) => {
-    if (acceptedFiles.length === 0) return;
-
     setUploading(true);
-    
     try {
-      // Upload all files simultaneously
-      const uploadPromises = acceptedFiles.map(async (file, index) => {
-        try {
-          await receiptAPI.upload(file);
-          return { success: true, filename: file.name };
-        } catch (error) {
-          console.error(`Error uploading ${file.name}:`, error);
-          return { success: false, filename: file.name, error };
-        }
-      });
-
-      const results = await Promise.all(uploadPromises);
-      const successful = results.filter(r => r.success);
-      const failed = results.filter(r => !r.success);
-
-      if (successful.length > 0) {
-        const message = acceptedFiles.length === 1 
-          ? 'Receipt uploaded successfully! Processing OCR...'
-          : `${successful.length} of ${acceptedFiles.length} receipts uploaded successfully! Processing OCR...`;
-        toast.success(message);
+      for (const file of acceptedFiles) {
+        await receiptAPI.upload(file);
       }
-
-      if (failed.length > 0) {
-        const message = failed.length === 1
-          ? `Failed to upload: ${failed[0].filename}`
-          : `Failed to upload ${failed.length} receipts`;
-        toast.error(message);
-      }
-      
-      // Refresh receipts list after a short delay to allow for OCR processing
-      setTimeout(() => {
-        loadReceipts(currentPage);
-      }, 3000); // Longer delay for multiple files
-      
+      toast.success(`${acceptedFiles.length} receipt(s) uploaded successfully`);
+      loadReceipts(currentPage);
     } catch (error) {
-      console.error('Error in batch upload:', error);
+      console.error('Error uploading receipts:', error);
       toast.error('Error uploading receipts');
     } finally {
       setUploading(false);
@@ -79,38 +114,40 @@ const Receipts = () => {
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
-      'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.webp'],
+      'image/*': ['.jpeg', '.jpg', '.png'],
       'application/pdf': ['.pdf']
     },
-    multiple: true,
-    disabled: uploading
+    multiple: true
   });
-
-  const handleDelete = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this receipt?')) {
-      return;
-    }
-
-    try {
-      await receiptAPI.delete(id);
-      toast.success('Receipt deleted');
-      loadReceipts(currentPage);
-    } catch (error) {
-      toast.error('Error deleting receipt');
-    }
-  };
 
   const handlePageChange = (newPage) => {
     setCurrentPage(newPage);
   };
 
+  const handleDelete = async (id) => {
+    if (window.confirm('Are you sure you want to delete this receipt?')) {
+      try {
+        await receiptAPI.delete(id);
+        toast.success('Receipt deleted successfully');
+        loadReceipts(currentPage);
+      } catch (error) {
+        console.error('Error deleting receipt:', error);
+        toast.error('Error deleting receipt');
+      }
+    }
+  };
+
   const getStatusBadge = (status) => {
-    const badgeClass = 
-      status === 'completed' ? 'badge-success' :
-      status === 'processing' ? 'badge-warning' :
-      'badge-danger';
-    
-    return <span className={`badge ${badgeClass}`}>{status}</span>;
+    switch (status) {
+      case 'completed':
+        return <span className="badge badge-success">Completed</span>;
+      case 'processing':
+        return <span className="badge badge-warning">Processing</span>;
+      case 'failed':
+        return <span className="badge badge-danger">Failed</span>;
+      default:
+        return <span className="badge badge-info">Pending</span>;
+    }
   };
 
   const getMatchStatus = (matchCount) => {
@@ -120,57 +157,227 @@ const Receipts = () => {
     return <span className="badge badge-warning">Unmatched</span>;
   };
 
+  const formatAmount = (amount) => {
+    if (!amount) return 'N/A';
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD'
+    }).format(amount);
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleDateString();
+  };
+
+  const formatFileSize = (bytes) => {
+    if (!bytes) return 'N/A';
+    const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return Math.round(bytes / Math.pow(1024, i) * 100) / 100 + ' ' + sizes[i];
+  };
+
   if (loading) {
     return (
-      <div className="flex-center" style={{ height: '50vh' }}>
+      <div className="loading-container">
         <div className="spinner"></div>
+        <p>Loading receipts...</p>
       </div>
     );
   }
 
   return (
-    <div>
-      <div className="flex-between mb-3">
+    <div className="receipts-page">
+      <div className="page-header">
         <h1>Receipts</h1>
-        <div className="text-sm text-gray">
-          Total: {pagination.total || 0} receipts
+        <p>Upload and manage receipt images</p>
+      </div>
+
+      {/* Upload Section */}
+      <div className="card mb-3">
+        <div className="card-header">
+          <h3 className="card-title">Upload Receipts</h3>
+        </div>
+        <div className="p-3">
+          <div
+            {...getRootProps()}
+            className={`dropzone ${isDragActive ? 'active' : ''}`}
+          >
+            <input {...getInputProps()} />
+            {uploading ? (
+              <div className="text-center">
+                <div className="spinner"></div>
+                <p>Uploading receipts...</p>
+              </div>
+            ) : (
+              <div className="text-center">
+                <p>Drag & drop receipt files here, or click to select files</p>
+                <p className="text-sm text-gray">
+                  Supports: JPG, PNG, PDF (max 10MB each)
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Upload Area */}
-      <div className="card mb-3">
-        <div className="card-header">
-          <h3 className="card-title">Upload Receipt</h3>
-          <p className="card-subtitle">
-            Upload multiple receipt images or PDF files for OCR processing and matching
-          </p>
-        </div>
-        
-        <div 
-          {...getRootProps()} 
-          className={`dropzone ${isDragActive ? 'active' : ''} ${uploading ? 'disabled' : ''}`}
-        >
-          <input {...getInputProps()} />
-          {uploading ? (
-            <div className="flex-center gap-2">
-              <div className="spinner"></div>
-              <span>Uploading and processing...</span>
-            </div>
-          ) : isDragActive ? (
-            <p>Drop the receipt files here...</p>
-          ) : (
-            <div>
-              <p><strong>Drag & drop</strong> receipt images or PDFs here, or <strong>click to select multiple files</strong></p>
-              <p className="text-sm text-gray">Supports: PNG, JPG, JPEG, GIF, BMP, WebP, PDF • Multiple files supported</p>
+      {/* Admin Filter Section */}
+      {user?.currentRole === 'admin' && (
+        <div className="card mb-3">
+          <div className="card-header">
+            <h3 className="card-title">Admin Filters</h3>
+            <button 
+              className="btn btn-sm btn-secondary"
+              onClick={() => setShowFilters(!showFilters)}
+            >
+              {showFilters ? 'Hide' : 'Show'} Filters
+            </button>
+          </div>
+          {showFilters && (
+            <div className="p-3">
+              <div className="grid grid-3 gap-3">
+                <div className="form-group">
+                  <label className="form-label">User</label>
+                  <select 
+                    value={filters.userId} 
+                    onChange={(e) => handleFilterChange('userId', e.target.value)}
+                    className="form-select"
+                  >
+                    <option value="">All Users</option>
+                    {companyUsers.map(user => (
+                      <option key={user.id} value={user.id}>
+                        {user.fullName} ({user.role})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div className="form-group">
+                  <label className="form-label">Start Date</label>
+                  <input 
+                    type="date" 
+                    value={filters.startDate}
+                    onChange={(e) => handleFilterChange('startDate', e.target.value)}
+                    className="form-input"
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label className="form-label">End Date</label>
+                  <input 
+                    type="date" 
+                    value={filters.endDate}
+                    onChange={(e) => handleFilterChange('endDate', e.target.value)}
+                    className="form-input"
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label className="form-label">Processing Status</label>
+                  <select 
+                    value={filters.processingStatus} 
+                    onChange={(e) => handleFilterChange('processingStatus', e.target.value)}
+                    className="form-select"
+                  >
+                    <option value="">All Status</option>
+                    <option value="completed">Completed</option>
+                    <option value="processing">Processing</option>
+                    <option value="failed">Failed</option>
+                    <option value="pending">Pending</option>
+                  </select>
+                </div>
+                
+                <div className="form-group">
+                  <label className="form-label">Min Amount</label>
+                  <input 
+                    type="number" 
+                    step="0.01"
+                    value={filters.minAmount}
+                    onChange={(e) => handleFilterChange('minAmount', e.target.value)}
+                    className="form-input"
+                    placeholder="0.00"
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label className="form-label">Max Amount</label>
+                  <input 
+                    type="number" 
+                    step="0.01"
+                    value={filters.maxAmount}
+                    onChange={(e) => handleFilterChange('maxAmount', e.target.value)}
+                    className="form-input"
+                    placeholder="0.00"
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label className="form-label">Match Status</label>
+                  <select 
+                    value={filters.status} 
+                    onChange={(e) => handleFilterChange('status', e.target.value)}
+                    className="form-select"
+                  >
+                    <option value="">All Status</option>
+                    <option value="matched">Matched</option>
+                    <option value="unmatched">Unmatched</option>
+                  </select>
+                </div>
+                
+                <div className="form-group">
+                  <label className="form-label">Sort By</label>
+                  <select 
+                    value={filters.sortBy} 
+                    onChange={(e) => handleFilterChange('sortBy', e.target.value)}
+                    className="form-select"
+                  >
+                    <option value="upload_date">Upload Date</option>
+                    <option value="extracted_date">Extracted Date</option>
+                    <option value="extracted_amount">Amount</option>
+                    <option value="file_size">File Size</option>
+                    <option value="original_filename">Filename</option>
+                    <option value="created_at">Created</option>
+                  </select>
+                </div>
+                
+                <div className="form-group">
+                  <label className="form-label">Sort Order</label>
+                  <select 
+                    value={filters.sortOrder} 
+                    onChange={(e) => handleFilterChange('sortOrder', e.target.value)}
+                    className="form-select"
+                  >
+                    <option value="DESC">Descending</option>
+                    <option value="ASC">Ascending</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div className="flex gap-2 mt-3">
+                <button 
+                  className="btn btn-primary"
+                  onClick={() => loadReceipts(1)}
+                >
+                  Apply Filters
+                </button>
+                <button 
+                  className="btn btn-secondary"
+                  onClick={clearFilters}
+                >
+                  Clear Filters
+                </button>
+              </div>
             </div>
           )}
         </div>
-      </div>
+      )}
 
-      {/* Receipts List */}
       <div className="card">
         <div className="card-header">
-          <h3 className="card-title">Uploaded Receipts</h3>
+          <h3 className="card-title">All Receipts</h3>
+          <p className="card-subtitle">
+            {user?.currentRole === 'admin' ? 'All company receipts' : 'Your receipts'}
+          </p>
         </div>
 
         {receipts.length > 0 ? (
@@ -179,12 +386,15 @@ const Receipts = () => {
               <table className="table">
                 <thead>
                   <tr>
-                    <th>Filename</th>
+                    <th>File</th>
                     <th>Upload Date</th>
-                    <th>OCR Status</th>
-                    <th>Extracted Amount</th>
-                    <th>Extracted Merchant</th>
+                    <th>Extracted Date</th>
+                    <th>Amount</th>
+                    <th>Merchant</th>
+                    <th>File Size</th>
+                    <th>Processing Status</th>
                     <th>Match Status</th>
+                    {user?.currentRole === 'admin' && <th>Created By</th>}
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -193,53 +403,40 @@ const Receipts = () => {
                     <tr key={receipt.id}>
                       <td>
                         <div className="text-sm">
-                          {receipt.original_filename.toLowerCase().endsWith('.pdf') ? '📄 ' : '🖼️ '}
                           {receipt.original_filename}
                         </div>
-                        <div className="text-sm text-gray">
-                          {(receipt.file_size / 1024).toFixed(1)} KB
-                          {receipt.original_filename.toLowerCase().endsWith('.pdf') ? ' (PDF)' : ' (Image)'}
+                      </td>
+                      <td>{formatDate(receipt.upload_date)}</td>
+                      <td>{formatDate(receipt.extracted_date)}</td>
+                      <td>{formatAmount(receipt.extracted_amount)}</td>
+                      <td>
+                        <div className="text-sm">
+                          {receipt.extracted_merchant || 'N/A'}
                         </div>
                       </td>
+                      <td>{formatFileSize(receipt.file_size)}</td>
+                      <td>{getStatusBadge(receipt.processing_status)}</td>
+                      <td>{getMatchStatus(receipt.match_count)}</td>
+                      {user?.currentRole === 'admin' && (
+                        <td>
+                          <div className="text-sm">
+                            {receipt.created_by_first_name && receipt.created_by_last_name ? (
+                              <span>
+                                {receipt.created_by_first_name} {receipt.created_by_last_name}
+                              </span>
+                            ) : (
+                              <span className="text-gray">Unknown</span>
+                            )}
+                          </div>
+                        </td>
+                      )}
                       <td>
-                        {new Date(receipt.upload_date).toLocaleDateString()}
-                      </td>
-                      <td>
-                        {getStatusBadge(receipt.processing_status)}
-                      </td>
-                      <td>
-                        {receipt.extracted_amount ? 
-                          `$${receipt.extracted_amount.toFixed(2)}` : 
-                          <span className="text-gray">-</span>
-                        }
-                      </td>
-                      <td>
-                        {receipt.extracted_merchant || 
-                          <span className="text-gray">-</span>
-                        }
-                      </td>
-                      <td>
-                        {getMatchStatus(receipt.match_count)}
-                      </td>
-                      <td>
-                        <div className="flex gap-1">
-                          {receipt.file_path && (
-                            <a
-                              href={`http://localhost:5000/uploads/receipts/${receipt.filename}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="btn btn-sm btn-secondary"
-                            >
-                              View
-                            </a>
-                          )}
-                          <button
-                            onClick={() => handleDelete(receipt.id)}
-                            className="btn btn-sm btn-danger"
-                          >
-                            Delete
-                          </button>
-                        </div>
+                        <button
+                          className="btn btn-sm btn-danger"
+                          onClick={() => handleDelete(receipt.id)}
+                        >
+                          Delete
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -249,22 +446,20 @@ const Receipts = () => {
 
             {/* Pagination */}
             {pagination.pages > 1 && (
-              <div className="flex-center mt-3 gap-2">
+              <div className="pagination">
                 <button
                   className="btn btn-sm btn-secondary"
-                  disabled={currentPage <= 1}
+                  disabled={currentPage === 1}
                   onClick={() => handlePageChange(currentPage - 1)}
                 >
                   Previous
                 </button>
-                
-                <span className="text-sm">
-                  Page {currentPage} of {pagination.pages}
+                <span className="pagination-info">
+                  Page {currentPage} of {pagination.pages} ({pagination.total} total)
                 </span>
-                
                 <button
                   className="btn btn-sm btn-secondary"
-                  disabled={currentPage >= pagination.pages}
+                  disabled={currentPage === pagination.pages}
                   onClick={() => handlePageChange(currentPage + 1)}
                 >
                   Next
@@ -273,9 +468,13 @@ const Receipts = () => {
             )}
           </>
         ) : (
-          <div className="text-center text-gray">
-            <p>No receipts uploaded yet</p>
-            <p className="text-sm">Upload your first receipt above to get started</p>
+          <div className="empty-state">
+            <p>No receipts found.</p>
+            {user?.currentRole === 'admin' && filters.userId && (
+              <p className="text-sm text-gray">
+                Try adjusting your filters or selecting a different user.
+              </p>
+            )}
           </div>
         )}
       </div>
