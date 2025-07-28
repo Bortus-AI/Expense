@@ -13,6 +13,25 @@ const MasterDataSettings = () => {
   const [editItem, setEditItem] = useState(null); // { id, name, type }
   const [loading, setLoading] = useState(true);
 
+  // Helper functions for proper display names
+  const getDisplayName = (type) => {
+    const displayNames = {
+      categories: 'Category',
+      jobNumbers: 'Job Number',
+      costCodes: 'Cost Code'
+    };
+    return displayNames[type] || type;
+  };
+
+  const getDisplayNamePlural = (type) => {
+    const displayNames = {
+      categories: 'Categories',
+      jobNumbers: 'Job Numbers',
+      costCodes: 'Cost Codes'
+    };
+    return displayNames[type] || type;
+  };
+
   useEffect(() => {
     if (user?.currentRole !== 'admin') {
       toast.error('Access denied. Admin privileges required.');
@@ -37,7 +56,7 @@ const MasterDataSettings = () => {
       }
     } catch (error) {
       console.error(`Error fetching ${tab}:`, error);
-      toast.error(`Failed to fetch ${tab}.`);
+      toast.error(`Failed to fetch ${getDisplayNamePlural(tab)}.`);
     } finally {
       setLoading(false);
     }
@@ -49,13 +68,20 @@ const MasterDataSettings = () => {
       return;
     }
     try {
-      await masterDataAPI[`add${type.charAt(0).toUpperCase() + type.slice(1)}`](newItemName);
+      // Map type to correct API method name
+      const methodMap = {
+        categories: 'addCategory',
+        jobNumbers: 'addJobNumber', 
+        costCodes: 'addCostCode'
+      };
+      
+      await masterDataAPI[methodMap[type]](newItemName);
       toast.success(`${newItemName} added successfully!`);
       setNewItemName('');
       fetchData(type);
     } catch (error) {
       console.error(`Error adding ${type}:`, error);
-      toast.error(error.response?.data?.error || `Failed to add ${type}.`);
+      toast.error(error.response?.data?.error || `Failed to add ${getDisplayName(type)}.`);
     }
   };
 
@@ -65,13 +91,20 @@ const MasterDataSettings = () => {
       return;
     }
     try {
-      await masterDataAPI[`update${type.charAt(0).toUpperCase() + type.slice(1)}`](editItem.id, editItem.name);
+      // Map type to correct API method name
+      const methodMap = {
+        categories: 'updateCategory',
+        jobNumbers: 'updateJobNumber', 
+        costCodes: 'updateCostCode'
+      };
+      
+      await masterDataAPI[methodMap[type]](editItem.id, editItem.name);
       toast.success(`${editItem.name} updated successfully!`);
       setEditItem(null);
       fetchData(type);
     } catch (error) {
       console.error(`Error updating ${type}:`, error);
-      toast.error(error.response?.data?.error || `Failed to update ${type}.`);
+      toast.error(error.response?.data?.error || `Failed to update ${getDisplayName(type)}.`);
     }
   };
 
@@ -80,12 +113,19 @@ const MasterDataSettings = () => {
       return;
     }
     try {
-      await masterDataAPI[`delete${type.charAt(0).toUpperCase() + type.slice(1)}`](id);
+      // Map type to correct API method name
+      const methodMap = {
+        categories: 'deleteCategory',
+        jobNumbers: 'deleteJobNumber', 
+        costCodes: 'deleteCostCode'
+      };
+      
+      await masterDataAPI[methodMap[type]](id);
       toast.success(`${name} deleted successfully!`);
       fetchData(type);
     } catch (error) {
       console.error(`Error deleting ${type}:`, error);
-      toast.error(error.response?.data?.error || `Failed to delete ${type}.`);
+      toast.error(error.response?.data?.error || `Failed to delete ${getDisplayName(type)}.`);
     }
   };
 
@@ -101,7 +141,7 @@ const MasterDataSettings = () => {
         <tbody>
           {items.length === 0 && !loading ? (
             <tr>
-              <td colSpan="2" className="text-center text-gray">No {type} found.</td>
+              <td colSpan="2" className="text-center text-gray">No {getDisplayNamePlural(type).toLowerCase()} found.</td>
             </tr>
           ) : (
             items.map((item) => (
@@ -175,12 +215,13 @@ const MasterDataSettings = () => {
       </div>
 
       <div className="card p-4">
-        <h2 className="mb-3">Add New {activeTab.replace(/([A-Z])/g, ' $1').toLowerCase().replace('s', '').trim()}</h2>
+        {/* Fixed display names and typos */}
+        <h2 className="mb-3">Add New {getDisplayName(activeTab)}</h2>
         <div className="input-group mb-4">
           <input
             type="text"
             className="form-control"
-            placeholder={`New ${activeTab.replace(/([A-Z])/g, ' $1').toLowerCase().replace('s', '').trim()} Name`}
+            placeholder={`Enter ${getDisplayName(activeTab).toLowerCase()} name`}
             value={newItemName}
             onChange={(e) => setNewItemName(e.target.value)}
             onKeyPress={(e) => {
@@ -190,11 +231,11 @@ const MasterDataSettings = () => {
             }}
           />
           <button className="btn btn-primary" onClick={() => handleAddItem(activeTab)}>
-            Add
+            Add {getDisplayName(activeTab)}
           </button>
         </div>
 
-        <h2 className="mb-3">Existing {activeTab.replace(/([A-Z])/g, ' $1').toLowerCase().trim()}</h2>
+        <h2 className="mb-3">Existing {getDisplayNamePlural(activeTab)}</h2>
         {renderTable(activeTab === 'categories' ? categories : activeTab === 'jobNumbers' ? jobNumbers : costCodes, activeTab)}
       </div>
     </div>
