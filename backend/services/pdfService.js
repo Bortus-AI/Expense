@@ -28,7 +28,7 @@ class PDFService {
       includeUnmatched = true
     } = options;
 
-    const doc = new PDFDocument({ margin: this.pageMargin });
+    const doc = new PDFDocument({ margin: this.pageMargin, layout: 'landscape' });
     let yPosition = this.pageMargin;
 
     // Header
@@ -66,7 +66,7 @@ class PDFService {
       maxPagesPerReceipt = null // null = all pages, number = limit pages per PDF
     } = options;
 
-    const doc = new PDFDocument({ margin: this.pageMargin });
+    const doc = new PDFDocument({ margin: this.pageMargin, layout: 'landscape' });
     let yPosition = this.pageMargin;
 
     // Generate subtitle based on match status filtering
@@ -302,7 +302,7 @@ class PDFService {
       period = 'Monthly'
     } = options;
 
-    const doc = new PDFDocument({ margin: this.pageMargin });
+    const doc = new PDFDocument({ margin: this.pageMargin, layout: 'landscape' });
     let yPosition = this.pageMargin;
 
     // Header
@@ -334,7 +334,7 @@ class PDFService {
       period
     } = options;
 
-    const doc = new PDFDocument({ margin: this.pageMargin });
+    const doc = new PDFDocument({ margin: this.pageMargin, layout: 'landscape' });
     let yPosition = this.pageMargin;
 
     // Header
