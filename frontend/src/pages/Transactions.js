@@ -14,6 +14,7 @@ const Transactions = () => {
   const [categories, setCategories] = useState([]);
   const [jobNumbers, setJobNumbers] = useState([]);
   const [costCodes, setCostCodes] = useState([]);
+  const [filteredCostCodes, setFilteredCostCodes] = useState([]);
   
   // Admin filtering state
   const [companyUsers, setCompanyUsers] = useState([]);
@@ -54,6 +55,7 @@ const Transactions = () => {
       setCategories(categoriesRes.data);
       setJobNumbers(jobNumbersRes.data);
       setCostCodes(costCodesRes.data);
+      setFilteredCostCodes(costCodesRes.data); // Initialize filteredCostCodes with all cost codes
     } catch (error) {
       console.error('Error loading master data:', error);
       toast.error('Failed to load master data for dropdowns.');
@@ -175,6 +177,15 @@ const Transactions = () => {
       job_number: transaction.job_number_name || '',
       cost_code: transaction.cost_code_name || ''
     });
+
+    // Initialize filteredCostCodes based on the transaction's category
+    const initialCategory = categories.find(cat => cat.name === transaction.category_name);
+    if (initialCategory) {
+      const initialFilteredCostCodes = costCodes.filter(cc => cc.category_id === initialCategory.id);
+      setFilteredCostCodes(initialFilteredCostCodes);
+    } else {
+      setFilteredCostCodes(costCodes); // If no category, show all cost codes
+    }
   };
 
   const handleEditCancel = () => {
@@ -183,10 +194,53 @@ const Transactions = () => {
   };
 
   const handleEditChange = (field, value) => {
-    setEditFormData(prev => ({
-      ...prev,
-      [field]: value
-    }));
+    setEditFormData(prev => {
+      let newFormData = { ...prev, [field]: value };
+
+      if (field === 'category') {
+        const selectedCategory = categories.find(cat => cat.name === value);
+        const newFilteredCostCodes = selectedCategory 
+          ? costCodes.filter(cc => cc.category_id === selectedCategory.id) 
+          : [];
+        setFilteredCostCodes(newFilteredCostCodes);
+
+        // Specific linking for PROJECT MANAGER
+        if (value === 'PROJECT MANAGER') {
+          const projectManagerCostCode = newFilteredCostCodes.find(cc => cc.name === '01-3114');
+          if (projectManagerCostCode) {
+            newFormData.cost_code = projectManagerCostCode.name;
+          } else {
+            newFormData.cost_code = ''; // Clear if 01-3114 is not available for some reason
+          }
+        } else if (newFilteredCostCodes.length === 1) {
+          // If only one cost code is available for the selected category, auto-select it
+          newFormData.cost_code = newFilteredCostCodes[0].name;
+        } else if (newFormData.cost_code && !newFilteredCostCodes.some(cc => cc.name === newFormData.cost_code)) {
+          // If the currently selected cost code is not in the new filtered list, clear it
+          newFormData.cost_code = '';
+        }
+      } else if (field === 'cost_code') {
+        // When cost code changes, automatically set the category
+        const selectedCostCode = costCodes.find(cc => cc.name === value);
+        if (selectedCostCode) {
+          const correspondingCategory = categories.find(cat => cat.id === selectedCostCode.category_id);
+          if (correspondingCategory) {
+            newFormData.category = correspondingCategory.name;
+            // Also update filtered cost codes based on this new category
+            const newFilteredCostCodes = costCodes.filter(cc => cc.category_id === correspondingCategory.id);
+            setFilteredCostCodes(newFilteredCostCodes);
+          }
+        }
+        // Specific linking for 01-3114 cost code
+        if (value === '01-3114') {
+          const projectManagerCategory = categories.find(cat => cat.name === 'PROJECT MANAGER');
+          if (projectManagerCategory) {
+            newFormData.category = projectManagerCategory.name;
+          }
+        }
+      }
+      return newFormData;
+    });
   };
 
   const handleEditSave = async (transactionId) => {
@@ -404,13 +458,13 @@ const Transactions = () => {
                 <thead>
                   <tr>
                     <th>Date</th>
-                    <th>Description</th>
-                    <th>Category</th>
-                    <th>Job Number</th>
-                    <th>Cost Code</th>
-                    <th>Amount</th>
                     <th>Transaction ID</th>
                     <th>Sales Tax</th>
+                    <th>Amount</th>
+                    <th>Job Number</th>
+                    <th>Cost Code</th>
+                    <th>Category</th>
+                    <th>Description</th>
                     <th>Receipt Status</th>
                     <th>Receipts</th>
                     {user?.currentRole === 'admin' && <th>Created By</th>}
@@ -424,40 +478,31 @@ const Transactions = () => {
                         {formatDate(transaction.transaction_date)}
                       </td>
                       
-                      {/* Description */}
+                      {/* Transaction ID */}
+                      <td>
+                        <div className="text-sm text-gray">
+                          {transaction.external_transaction_id || 'N/A'}
+                        </div>
+                      </td>
+                      
+                      {/* Sales Tax */}
+                      <td>
+                        {transaction.sales_tax ? formatAmount(transaction.sales_tax) : 'N/A'}
+                      </td>
+                      
+                      {/* Amount */}
                       <td>
                         {editingTransaction === transaction.id ? (
                           <input
-                            type="text"
+                            type="number"
+                            step="0.01"
                             className="form-input"
-                            value={editFormData.description}
-                            onChange={(e) => handleEditChange('description', e.target.value)}
-                            placeholder="Description"
+                            value={editFormData.amount}
+                            onChange={(e) => handleEditChange('amount', e.target.value)}
+                            placeholder="0.00"
                           />
                         ) : (
-                          <div className="text-sm">
-                            {transaction.description || <span className="text-danger">Missing description</span>}
-                          </div>
-                        )}
-                      </td>
-                      
-                      {/* Category */}
-                      <td>
-                        {editingTransaction === transaction.id ? (
-                          <select
-                            className="form-select"
-                            value={editFormData.category}
-                            onChange={(e) => handleEditChange('category', e.target.value)}
-                          >
-                            <option value="">Select Category</option>
-                            {categories.map(cat => (
-                              <option key={cat.id} value={cat.name}>{cat.name}</option>
-                            ))}
-                          </select>
-                        ) : (
-                          <span className={`badge ${transaction.category_name ? 'badge-info' : 'badge-warning'}`}>
-                            {transaction.category_name || 'Not set'}
-                          </span>
+                          formatAmount(transaction.amount)
                         )}
                       </td>
                       
@@ -494,7 +539,7 @@ const Transactions = () => {
                             onChange={(e) => handleEditChange('cost_code', e.target.value)}
                           >
                             <option value="">Select Cost Code</option>
-                            {costCodes.map(cc => (
+                            {filteredCostCodes.map(cc => (
                               <option key={cc.id} value={cc.name}>{cc.name}</option>
                             ))}
                           </select>
@@ -509,31 +554,47 @@ const Transactions = () => {
                         )}
                       </td>
                       
-                      {/* Amount */}
+                      {/* Category */}
                       <td>
                         {editingTransaction === transaction.id ? (
-                          <input
-                            type="number"
-                            step="0.01"
-                            className="form-input"
-                            value={editFormData.amount}
-                            onChange={(e) => handleEditChange('amount', e.target.value)}
-                            placeholder="0.00"
-                          />
+                          <select
+                            className="form-select"
+                            value={editFormData.category}
+                            onChange={(e) => handleEditChange('category', e.target.value)}
+                          >
+                            <option value="">Select Category</option>
+                            {categories.map(cat => (
+                              <option key={cat.id} value={cat.name}>{cat.name}</option>
+                            ))}
+                          </select>
                         ) : (
-                          formatAmount(transaction.amount)
+                          <span className={`badge ${transaction.category_name ? 'badge-info' : 'badge-warning'}`}>
+                            {transaction.category_name || 'Not set'}
+                          </span>
                         )}
                       </td>
                       
+                      {/* Description */}
                       <td>
-                        <div className="text-sm text-gray">
-                          {transaction.external_transaction_id || 'N/A'}
-                        </div>
+                        {editingTransaction === transaction.id ? (
+                          <input
+                            type="text"
+                            className="form-input"
+                            value={editFormData.description}
+                            onChange={(e) => handleEditChange('description', e.target.value)}
+                            placeholder="Description"
+                          />
+                        ) : (
+                          <div className="text-sm">
+                            {transaction.description || <span className="text-danger">Missing description</span>}
+                          </div>
+                        )}
                       </td>
-                      <td>
-                        {transaction.sales_tax ? formatAmount(transaction.sales_tax) : 'N/A'}
-                      </td>
+                      
+                      {/* Receipt Status */}
                       <td>{getReceiptStatus(transaction.receipt_count)}</td>
+                      
+                      {/* Receipts */}
                       <td>
                         {transaction.receipts ? (
                           <div className="text-sm">

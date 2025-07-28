@@ -447,8 +447,8 @@ class PDFService {
     yPosition += 25;
 
     // Table Headers
-    const headers = ['Date', 'Description', 'Amount', 'Category', 'Job #', 'Cost Code', 'Sales Tax', 'User', 'Status'];
-    const columnWidths = [60, 140, 60, 70, 50, 50, 60, 60, 50];
+    const headers = ['Date', 'Transaction ID', 'Sales Tax', 'Amount', 'Job #', 'Cost Code', 'Category', 'Description', 'Receipt Status', 'User'];
+    const columnWidths = [50, 70, 50, 50, 50, 50, 60, 100, 60, 50];
     let xPosition = this.pageMargin;
 
     doc.fontSize(10)
@@ -484,18 +484,19 @@ class PDFService {
       xPosition = this.pageMargin;
       const rowData = [
         moment(transaction.transaction_date).format('MM/DD/YY'),
-        transaction.description.substring(0, 20) + (transaction.description.length > 20 ? '...' : ''),
-        `$${parseFloat(transaction.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
-        transaction.category_name || 'N/A',
+        transaction.external_transaction_id || 'N/A',
+        transaction.sales_tax ? `${parseFloat(transaction.sales_tax).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : 'N/A',
+        `${parseFloat(transaction.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
         transaction.job_number_name || 'N/A',
         transaction.cost_code_name || 'N/A',
-        transaction.sales_tax ? `${parseFloat(transaction.sales_tax).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : 'N/A',
-        transaction.user_name || 'N/A',
-        transaction.receipt_count > 0 ? 'Matched' : 'Unmatched'
+        transaction.category_name || 'N/A',
+        transaction.description.substring(0, 20) + (transaction.description.length > 20 ? '...' : ''),
+        transaction.receipt_count > 0 ? 'Matched' : 'Unmatched',
+        transaction.user_name || 'N/A'
       ];
 
       rowData.forEach((data, index) => {
-        const color = index === 7 ? (data === 'Matched' ? this.colors.accent : this.colors.danger) : this.colors.text;
+        const color = index === 8 ? (data === 'Matched' ? this.colors.accent : this.colors.danger) : this.colors.text;
         doc.fillColor(color)
            .text(data, xPosition, yPosition, { width: columnWidths[index] });
         xPosition += columnWidths[index] + 10;

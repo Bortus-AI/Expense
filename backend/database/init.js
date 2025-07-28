@@ -281,9 +281,11 @@ const initDatabase = () => {
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       company_id INTEGER NOT NULL,
       name TEXT NOT NULL,
+      category_id INTEGER,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (company_id) REFERENCES companies(id),
+      FOREIGN KEY (category_id) REFERENCES categories(id),
       UNIQUE(company_id, name)
     )
   `, (err) => {
@@ -306,6 +308,13 @@ const initDatabase = () => {
   db.run(`ALTER TABLE transactions ADD COLUMN cost_code_id INTEGER`, (err) => {
     if (err && !err.message.includes('duplicate column name')) {
       console.error('Error adding cost_code_id column to transactions:', err.message);
+    }
+  });
+
+  // Add category_id to cost_codes table for cost code-category relationship
+  db.run(`ALTER TABLE cost_codes ADD COLUMN category_id INTEGER`, (err) => {
+    if (err && !err.message.includes('duplicate column name')) {
+      console.error('Error adding category_id column to cost_codes:', err.message);
     }
   });
 

@@ -165,16 +165,37 @@ export const masterDataAPI = {
   addCategory: (name) => api.post('/masterdata/categories', { name }),
   updateCategory: (id, name) => api.put(`/masterdata/categories/${id}`, { name }),
   deleteCategory: (id) => api.delete(`/masterdata/categories/${id}`),
+  importCategories: (file) => {
+    const formData = new FormData();
+    formData.append('csvFile', file);
+    return api.post('/masterdata/categories/import', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  },
 
   getJobNumbers: () => api.get('/masterdata/job_numbers'),
   addJobNumber: (name) => api.post('/masterdata/job_numbers', { name }),
   updateJobNumber: (id, name) => api.put(`/masterdata/job_numbers/${id}`, { name }),
   deleteJobNumber: (id) => api.delete(`/masterdata/job_numbers/${id}`),
+  importJobNumbers: (file) => {
+    const formData = new FormData();
+    formData.append('csvFile', file);
+    return api.post('/masterdata/job_numbers/import', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  },
 
   getCostCodes: () => api.get('/masterdata/cost_codes'),
-  addCostCode: (name) => api.post('/masterdata/cost_codes', { name }),
-  updateCostCode: (id, name) => api.put(`/masterdata/cost_codes/${id}`, { name }),
+  addCostCode: (name, category_id) => api.post('/masterdata/cost_codes', { name, category_id }),
+  updateCostCode: (id, name, category_id) => api.put(`/masterdata/cost_codes/${id}`, { name, category_id }),
   deleteCostCode: (id) => api.delete(`/masterdata/cost_codes/${id}`),
+  importCostCodes: (file) => {
+    const formData = new FormData();
+    formData.append('csvFile', file);
+    return api.post('/masterdata/cost_codes/import', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  },
 };
 
 // Export both as named export and default export

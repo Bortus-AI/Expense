@@ -222,16 +222,16 @@ class ExcelService {
     // Column headers
     const headers = [
       'Date',
-      'Description', 
-      'Amount',
-      'Category',
-      'Job Number',
-      'Cost Code',
       'Transaction ID',
       'Sales Tax',
-      'User',
-      'Status',
-      'Receipt Count'
+      'Amount',
+      'Job Number',
+      'Cost Code',
+      'Category',
+      'Description',
+      'Receipt Status',
+      'Receipt Count',
+      'Created By'
     ];
 
     // Add headers
@@ -257,47 +257,47 @@ class ExcelService {
       sheet.getCell(rowIndex, 1).value = new Date(transaction.transaction_date);
       sheet.getCell(rowIndex, 1).numFmt = 'mm/dd/yyyy';
       
-      sheet.getCell(rowIndex, 2).value = transaction.description;
-      sheet.getCell(rowIndex, 3).value = parseFloat(transaction.amount || 0);
-      sheet.getCell(rowIndex, 3).numFmt = '"$"#,##0.00';
+      sheet.getCell(rowIndex, 2).value = transaction.external_transaction_id || '';
       
-      sheet.getCell(rowIndex, 4).value = transaction.category_name || '';
+      sheet.getCell(rowIndex, 3).value = parseFloat(transaction.sales_tax || 0);
+      sheet.getCell(rowIndex, 3).numFmt = '"$"#,##0.00';
+
+      sheet.getCell(rowIndex, 4).value = parseFloat(transaction.amount || 0);
+      sheet.getCell(rowIndex, 4).numFmt = '"$"#,##0.00';
+      
       sheet.getCell(rowIndex, 5).value = transaction.job_number_name || '';
       sheet.getCell(rowIndex, 6).value = transaction.cost_code_name || '';
-      sheet.getCell(rowIndex, 7).value = transaction.external_transaction_id || '';
-      
-      sheet.getCell(rowIndex, 8).value = parseFloat(transaction.sales_tax || 0);
-      sheet.getCell(rowIndex, 8).numFmt = '"$"#,##0.00';
-
-      sheet.getCell(rowIndex, 9).value = transaction.user_name || '';
+      sheet.getCell(rowIndex, 7).value = transaction.category_name || '';
+      sheet.getCell(rowIndex, 8).value = transaction.description;
       
       const status = transaction.receipt_count > 0 ? 'Matched' : 'Unmatched';
-      sheet.getCell(rowIndex, 10).value = status;
+      sheet.getCell(rowIndex, 9).value = status;
       
       // Style status cell
-      const statusCell = sheet.getCell(rowIndex, 10);
+      const statusCell = sheet.getCell(rowIndex, 9);
       if (status === 'Matched') {
         statusCell.style = this.getStatusStyle('matched');
       } else {
         statusCell.style = this.getStatusStyle('unmatched');
       }
       
-      sheet.getCell(rowIndex, 11).value = transaction.receipt_count || 0;
+      sheet.getCell(rowIndex, 10).value = transaction.receipt_count || 0;
+      sheet.getCell(rowIndex, 11).value = transaction.user_name || '';
     });
 
     // Auto-fit columns
     sheet.columns = [
       { width: 12 }, // Date
-      { width: 40 }, // Description
-      { width: 15 }, // Amount
-      { width: 20 }, // Category
-      { width: 15 }, // Job Number
-      { width: 15 }, // Cost Code
       { width: 20 }, // Transaction ID
       { width: 12 }, // Sales Tax
-      { width: 20 }, // User
-      { width: 12 }, // Status
-      { width: 12 }  // Receipt Count
+      { width: 15 }, // Amount
+      { width: 15 }, // Job Number
+      { width: 15 }, // Cost Code
+      { width: 20 }, // Category
+      { width: 40 }, // Description
+      { width: 12 }, // Receipt Status
+      { width: 12 }, // Receipt Count
+      { width: 20 }  // Created By
     ];
 
     // Add totals row
