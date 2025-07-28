@@ -159,6 +159,24 @@ export const companyAPI = {
   removeUser: (userId) => api.delete(`/companies/current/users/${userId}`)
 };
 
+// Master Data API
+export const masterDataAPI = {
+  getCategories: () => api.get('/masterdata/categories'),
+  addCategory: (name) => api.post('/masterdata/categories', { name }),
+  updateCategory: (id, name) => api.put(`/masterdata/categories/${id}`, { name }),
+  deleteCategory: (id) => api.delete(`/masterdata/categories/${id}`),
+
+  getJobNumbers: () => api.get('/masterdata/job_numbers'),
+  addJobNumber: (name) => api.post('/masterdata/job_numbers', { name }),
+  updateJobNumber: (id, name) => api.put(`/masterdata/job_numbers/${id}`, { name }),
+  deleteJobNumber: (id) => api.delete(`/masterdata/job_numbers/${id}`),
+
+  getCostCodes: () => api.get('/masterdata/cost_codes'),
+  addCostCode: (name) => api.post('/masterdata/cost_codes', { name }),
+  updateCostCode: (id, name) => api.put(`/masterdata/cost_codes/${id}`, { name }),
+  deleteCostCode: (id) => api.delete(`/masterdata/cost_codes/${id}`),
+};
+
 // Export both as named export and default export
 export { api };
 export default api; 

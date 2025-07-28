@@ -112,6 +112,10 @@ router.get('/dashboard', (req, res) => {
             missingCategory: row.missing_category || 0,
             missingJobNumber: row.missing_job_number || 0,
             missingCostCode: row.missing_cost_code || 0,
+            missingDescriptionPercentage: totalTransactions > 0 ? Math.round(((row.missing_description || 0) / totalTransactions) * 100) : 0,
+            missingCategoryPercentage: totalTransactions > 0 ? Math.round(((row.missing_category || 0) / totalTransactions) * 100) : 0,
+            missingJobNumberPercentage: totalTransactions > 0 ? Math.round(((row.missing_job_number || 0) / totalTransactions) * 100) : 0,
+            missingCostCodePercentage: totalTransactions > 0 ? Math.round(((row.missing_cost_code || 0) / totalTransactions) * 100) : 0,
             incompleteTransactions,
             completeTransactions,
             completionRate: totalTransactions > 0 ? 

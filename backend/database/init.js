@@ -241,6 +241,74 @@ const initDatabase = () => {
     }
   });
 
+  // Categories table
+  db.run(`
+    CREATE TABLE IF NOT EXISTS categories (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      company_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (company_id) REFERENCES companies(id),
+      UNIQUE(company_id, name)
+    )
+  `, (err) => {
+    if (err) {
+      console.error('Error creating categories table:', err.message);
+    }
+  });
+
+  // Job Numbers table
+  db.run(`
+    CREATE TABLE IF NOT EXISTS job_numbers (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      company_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (company_id) REFERENCES companies(id),
+      UNIQUE(company_id, name)
+    )
+  `, (err) => {
+    if (err) {
+      console.error('Error creating job_numbers table:', err.message);
+    }
+  });
+
+  // Cost Codes table
+  db.run(`
+    CREATE TABLE IF NOT EXISTS cost_codes (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      company_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (company_id) REFERENCES companies(id),
+      UNIQUE(company_id, name)
+    )
+  `, (err) => {
+    if (err) {
+      console.error('Error creating cost_codes table:', err.message);
+    }
+  });
+
+  // Add new foreign key columns to transactions table
+  db.run(`ALTER TABLE transactions ADD COLUMN category_id INTEGER`, (err) => {
+    if (err && !err.message.includes('duplicate column name')) {
+      console.error('Error adding category_id column to transactions:', err.message);
+    }
+  });
+  db.run(`ALTER TABLE transactions ADD COLUMN job_number_id INTEGER`, (err) => {
+    if (err && !err.message.includes('duplicate column name')) {
+      console.error('Error adding job_number_id column to transactions:', err.message);
+    }
+  });
+  db.run(`ALTER TABLE transactions ADD COLUMN cost_code_id INTEGER`, (err) => {
+    if (err && !err.message.includes('duplicate column name')) {
+      console.error('Error adding cost_code_id column to transactions:', err.message);
+    }
+  });
+
   // Receipts table (updated with company_id and user tracking)
   db.run(`
     CREATE TABLE IF NOT EXISTS receipts (

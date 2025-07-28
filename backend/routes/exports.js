@@ -97,13 +97,17 @@ router.post('/pdf/transactions', async (req, res) => {
       SELECT t.*, 
              COUNT(m.id) as receipt_count,
              GROUP_CONCAT(r.original_filename) as receipt_filenames,
-             u.first_name as created_by_first_name,
-             u.last_name as created_by_last_name,
-             u.email as created_by_email
+             u.first_name || ' ' || u.last_name as user_name,
+             c.name as category_name,
+             jn.name as job_number_name,
+             cc.name as cost_code_name
       FROM transactions t
       LEFT JOIN matches m ON t.id = m.transaction_id AND m.match_status = 'confirmed'
       LEFT JOIN receipts r ON m.receipt_id = r.id
       LEFT JOIN users u ON t.created_by = u.id
+      LEFT JOIN categories c ON t.category_id = c.id
+      LEFT JOIN job_numbers jn ON t.job_number_id = jn.id
+      LEFT JOIN cost_codes cc ON t.cost_code_id = cc.id
       WHERE t.company_id = ?
     `;
     
@@ -176,16 +180,7 @@ router.post('/pdf/transactions', async (req, res) => {
       }
 
       console.log(`Found ${transactions.length} transactions for export`);
-      if (transactions.length > 0) {
-        console.log('Sample transaction:', {
-          id: transactions[0].id,
-          date: transactions[0].transaction_date,
-          description: transactions[0].description,
-          amount: transactions[0].amount,
-          company_id: transactions[0].company_id,
-          created_by: transactions[0].created_by_email
-        });
-      }
+      
 
       try {
         const pdfDoc = await pdfService.generateTransactionReport(transactions, {
@@ -241,13 +236,17 @@ router.post('/excel/transactions', async (req, res) => {
       SELECT t.*, 
              COUNT(m.id) as receipt_count,
              GROUP_CONCAT(r.original_filename) as receipt_filenames,
-             u.first_name as created_by_first_name,
-             u.last_name as created_by_last_name,
-             u.email as created_by_email
+             u.first_name || ' ' || u.last_name as user_name,
+             c.name as category_name,
+             jn.name as job_number_name,
+             cc.name as cost_code_name
       FROM transactions t
       LEFT JOIN matches m ON t.id = m.transaction_id AND m.match_status = 'confirmed'
       LEFT JOIN receipts r ON m.receipt_id = r.id
       LEFT JOIN users u ON t.created_by = u.id
+      LEFT JOIN categories c ON t.category_id = c.id
+      LEFT JOIN job_numbers jn ON t.job_number_id = jn.id
+      LEFT JOIN cost_codes cc ON t.cost_code_id = cc.id
       WHERE t.company_id = ?
     `;
     

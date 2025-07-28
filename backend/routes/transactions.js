@@ -8,6 +8,35 @@ const path = require('path');
 const moment = require('moment');
 const { authenticateToken, getUserCompanies, requireCompanyAccess, addUserTracking } = require('../middleware/auth');
 
+// Helper function to find or create a master data item
+const findOrCreateMasterDataItem = (tableName, name, companyId) => {
+  return new Promise((resolve, reject) => {
+    if (!name || name.trim() === '') {
+      resolve(null); // Return null if name is empty
+      return;
+    }
+    const trimmedName = name.trim();
+    db.get(`SELECT id FROM ${tableName} WHERE company_id = ? AND name = ?`, [companyId, trimmedName], (err, row) => {
+      if (err) {
+        reject(err);
+      } else if (row) {
+        resolve(row.id);
+      } else {
+        // Not found, create it
+        db.run(`INSERT INTO ${tableName} (company_id, name) VALUES (?, ?)`, [companyId, trimmedName], function(err) {
+          if (err) {
+            reject(err);
+          } else {
+            resolve(this.lastID);
+          }
+        });
+      }
+    });
+  });
+};
+
+// Helper function to find user by first and last name within the company
+
 // Apply authentication middleware to all routes
 router.use(authenticateToken);
 router.use(getUserCompanies);
@@ -174,11 +203,17 @@ router.get('/', (req, res) => {
            GROUP_CONCAT(r.original_filename) as receipts,
            u.first_name as created_by_first_name,
            u.last_name as created_by_last_name,
-           u.email as created_by_email
+           u.email as created_by_email,
+           c.name as category_name,
+           jn.name as job_number_name,
+           cc.name as cost_code_name
     FROM transactions t
     LEFT JOIN matches m ON t.id = m.transaction_id AND m.user_confirmed = 1
     LEFT JOIN receipts r ON m.receipt_id = r.id
     LEFT JOIN users u ON t.created_by = u.id
+    LEFT JOIN categories c ON t.category_id = c.id
+    LEFT JOIN job_numbers jn ON t.job_number_id = jn.id
+    LEFT JOIN cost_codes cc ON t.cost_code_id = cc.id
     ${whereClause}
     GROUP BY t.id
     ORDER BY t.${sortBy} ${sortOrder}
@@ -240,10 +275,16 @@ router.get('/:id', (req, res) => {
   const query = `
     SELECT t.*, 
            GROUP_CONCAT(r.original_filename) as receipts,
-           GROUP_CONCAT(r.id) as receipt_ids
+           GROUP_CONCAT(r.id) as receipt_ids,
+           c.name as category_name,
+           jn.name as job_number_name,
+           cc.name as cost_code_name
     FROM transactions t
     LEFT JOIN matches m ON t.id = m.transaction_id AND m.user_confirmed = 1
     LEFT JOIN receipts r ON m.receipt_id = r.id
+    LEFT JOIN categories c ON t.category_id = c.id
+    LEFT JOIN job_numbers jn ON t.job_number_id = jn.id
+    LEFT JOIN cost_codes cc ON t.cost_code_id = cc.id
     ${whereClause}
     GROUP BY t.id
   `;
@@ -318,108 +359,12 @@ router.post('/import', csvUpload.single('csvFile'), (req, res) => {
       }
       const description = row['Description'] || '';
       const amount = parseFloat(row['Amount']) || 0;
-      const category = row['Category'] || '';
+      const categoryName = row['Category'] || '';
       
       // Extract job number and cost code from CSV if available
-      const jobNumber = row['Job Number'] || row['JobNumber'] || row['job_number'] || row['Job'] || '';
-      const costCode = row['Cost Code'] || row['CostCode'] || row['cost_code'] || row['Code'] || '';
-      
-      // Extract additional fields if available - try multiple column name variants
-      let externalTransactionId = 
-        row['Transaction ID'] || 
-        row['Reference Number'] || 
-        row['Reference ID'] || 
-        row['Transaction Number'] || 
-        row['Confirmation Number'] || 
-        row['Auth Code'] || 
-        row['Authorization Code'] || 
-        row['ID'] || 
-        row['Ref'] || 
-        row['Ref Number'] || 
-        row['Ref#'] || '';
+      const jobNumberName = row['Job Number'] || row['JobNumber'] || row['job_number'] || row['Job'] || '';
+      const costCodeName = row['Cost Code'] || row['CostCode'] || row['cost_code'] || row['Code'] || '';
 
-      // If no standard ID found, look for any column that might contain ID-like values
-      if (!externalTransactionId) {
-        const columnKeys = Object.keys(row);
-        for (const key of columnKeys) {
-          const value = row[key];
-          // Look for columns with ID-like patterns (alphanumeric strings 4+ chars)
-          if (value && typeof value === 'string' && 
-              /^[A-Z0-9]{4,}$/i.test(value.trim()) && 
-              key.toLowerCase().includes('id')) {
-            externalTransactionId = value.trim();
-            console.log(`Found Transaction ID in column "${key}": ${externalTransactionId}`);
-            break;
-          }
-        }
-      }
-        
-      const salesTax = parseFloat(
-        row['Tax Amount'] || 
-        row['Sales Tax'] || 
-        row['Tax'] || 
-        row['GST'] || 
-        row['VAT'] || 
-        row['State Tax'] || 
-        row['Local Tax'] || 
-        '' 
-      ) || null;
-
-      // Extract user names for matching - try multiple column name variants
-      const firstName = (
-        row['First Name'] || 
-        row['FirstName'] || 
-        row['first_name'] || 
-        row['Employee First Name'] || 
-        row['User First Name'] || 
-        row['Name'] || // Could be "John Doe" format
-        ''
-      ).trim();
-      
-      const lastName = (
-        row['Last Name'] || 
-        row['LastName'] || 
-        row['last_name'] || 
-        row['Employee Last Name'] || 
-        row['User Last Name'] || 
-        row['Surname'] ||
-        ''
-      ).trim();
-
-      // Handle "Name" column that might contain "First Last" format
-      let finalFirstName = firstName;
-      let finalLastName = lastName;
-      if (!firstName && !lastName && row['Name']) {
-        const nameParts = row['Name'].trim().split(/\s+/);
-        if (nameParts.length >= 2) {
-          finalFirstName = nameParts[0];
-          finalLastName = nameParts.slice(1).join(' '); // Handle middle names
-        }
-      }
-      
-      // Debug: Log user name detection for first few rows
-      if (transactions.length < 3) {
-        console.log(`Row ${transactions.length + 1} processing:`, {
-          'Available columns': Object.keys(row),
-          'Transaction ID': row['Transaction ID'],
-          'Reference Number': row['Reference Number'], 
-          'ID': row['ID'],
-          'Final Transaction ID': externalTransactionId,
-          'Name columns': {
-            'First Name': row['First Name'],
-            'Last Name': row['Last Name'],
-            'Name': row['Name'],
-            'Final firstName': finalFirstName,
-            'Final lastName': finalLastName
-          },
-          'Sales Tax sources': {
-            'Tax Amount': row['Tax Amount'],
-            'Sales Tax': row['Sales Tax'],
-            'Final tax': salesTax
-          }
-        });
-      }
-      
       // Create a unique identifier from the transaction data
       const chaseTransactionId = `${transactionDate}_${description}_${Math.abs(amount)}`.replace(/[^a-zA-Z0-9]/g, '_');
 
@@ -427,14 +372,18 @@ router.post('/import', csvUpload.single('csvFile'), (req, res) => {
         transaction_date: transactionDate,
         description: description,
         amount: amount,
-        category: category,
-        job_number: jobNumber,
-        cost_code: costCode,
+        category: categoryName, // Keep original name for display/backward compatibility
+        job_number: jobNumberName, // Keep original name
+        cost_code: costCodeName, // Keep original name
         chase_transaction_id: chaseTransactionId,
         external_transaction_id: externalTransactionId,
         sales_tax: salesTax,
         first_name: finalFirstName,
-        last_name: finalLastName
+        last_name: finalLastName,
+        // Store promises for master data IDs
+        category_id_promise: findOrCreateMasterDataItem('categories', categoryName, req.companyId),
+        job_number_id_promise: findOrCreateMasterDataItem('job_numbers', jobNumberName, req.companyId),
+        cost_code_id_promise: findOrCreateMasterDataItem('cost_codes', costCodeName, req.companyId)
       });
     })
     .on('end', async () => {
@@ -550,69 +499,69 @@ router.post('/import', csvUpload.single('csvFile'), (req, res) => {
       console.log(`   • Missing both fields: ${missingFieldsResults.missingBoth}`);
       console.log(`   • Total incomplete: ${missingFieldsResults.missingJobNumber + missingFieldsResults.missingCostCode + missingFieldsResults.missingBoth}\n`);
 
-      // Insert transactions into database with user assignments
-      const stmt = db.prepare(`
-        INSERT OR IGNORE INTO transactions 
-        (transaction_date, description, amount, category, job_number, cost_code, chase_transaction_id, external_transaction_id, sales_tax, company_id, created_by, updated_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `);
-
-      processedTransactions.forEach((transaction) => {
-        stmt.run([
-          transaction.transaction_date,
-          transaction.description,
-          transaction.amount,
-          transaction.category,
-          transaction.job_number || null,   // job_number (from CSV or null)
-          transaction.cost_code || null,    // cost_code (from CSV or null)
-          transaction.chase_transaction_id,
-          transaction.external_transaction_id,
-          transaction.sales_tax,
-          req.companyId,                    // company_id
-          transaction.assignedUserId,       // created_by (matched user or admin)
-          req.userId                        // updated_by (always the admin who imported)
-        ], function(err) {
-          if (err) {
-            console.error('Error inserting transaction:', err);
-            skipCount++;
-          } else {
-            if (this.changes > 0) {
-              importCount++;
-            } else {
+      const insertPromises = processedTransactions.map(transaction => {
+        return new Promise((resolve, reject) => {
+          db.run(`
+            INSERT OR IGNORE INTO transactions 
+            (transaction_date, description, amount, category, category_id, job_number, job_number_id, cost_code, cost_code_id, chase_transaction_id, external_transaction_id, sales_tax, company_id, created_by, updated_by)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+          `, [
+            transaction.transaction_date,
+            transaction.description,
+            transaction.amount,
+            transaction.category,
+            transaction.category_id,
+            transaction.job_number || null,
+            transaction.job_number_id,
+            transaction.cost_code || null,
+            transaction.cost_code_id,
+            transaction.chase_transaction_id,
+            transaction.external_transaction_id,
+            transaction.sales_tax,
+            req.companyId,
+            transaction.assignedUserId,
+            req.userId
+          ], function(err) {
+            if (err) {
+              console.error('Error inserting transaction:', err);
               skipCount++;
+              reject(err);
+            } else {
+              if (this.changes > 0) {
+                importCount++;
+              } else {
+                skipCount++;
+              }
+              resolve();
             }
-          }
+          });
         });
       });
 
-      stmt.finalize((err) => {
-        if (err) {
-          return res.status(500).json({ error: 'Error finalizing import' });
+      await Promise.all(insertPromises);
+
+      // Clean up uploaded file
+      fs.unlinkSync(req.file.path);
+
+      res.json({
+        message: 'Import completed with user matching',
+        imported: importCount,
+        skipped: skipCount,
+        total: transactions.length,
+        userMatching: {
+          matched: userMatchResults.matched,
+          unmatched: userMatchResults.unmatched,
+          adminAssigned: userMatchResults.adminAssigned,
+          details: userMatchResults.details.slice(0, 20) // Limit details to first 20 for response size
+        },
+        missingRequiredFields: {
+          complete: missingFieldsResults.complete,
+          missingJobNumber: missingFieldsResults.missingJobNumber,
+          missingCostCode: missingFieldsResults.missingCostCode,
+          missingBoth: missingFieldsResults.missingBoth,
+          totalIncomplete: missingFieldsResults.missingJobNumber + missingFieldsResults.missingCostCode + missingFieldsResults.missingBoth,
+          details: missingFieldsResults.details.slice(0, 20) // Limit details to first 20 for response size
         }
-
-        // Clean up uploaded file
-        fs.unlinkSync(req.file.path);
-
-        res.json({
-          message: 'Import completed with user matching',
-          imported: importCount,
-          skipped: skipCount,
-          total: transactions.length,
-          userMatching: {
-            matched: userMatchResults.matched,
-            unmatched: userMatchResults.unmatched,
-            adminAssigned: userMatchResults.adminAssigned,
-            details: userMatchResults.details.slice(0, 20) // Limit details to first 20 for response size
-          },
-          missingRequiredFields: {
-            complete: missingFieldsResults.complete,
-            missingJobNumber: missingFieldsResults.missingJobNumber,
-            missingCostCode: missingFieldsResults.missingCostCode,
-            missingBoth: missingFieldsResults.missingBoth,
-            totalIncomplete: missingFieldsResults.missingJobNumber + missingFieldsResults.missingCostCode + missingFieldsResults.missingBoth,
-            details: missingFieldsResults.details.slice(0, 20) // Limit details to first 20 for response size
-          }
-        });
       });
     })
     .on('error', (err) => {
@@ -621,9 +570,14 @@ router.post('/import', csvUpload.single('csvFile'), (req, res) => {
 });
 
 // Update transaction
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   const { description, amount, category, job_number, cost_code } = req.body;
   
+  // Get IDs for category, job number, and cost code
+  const categoryId = await findOrCreateMasterDataItem('categories', category, req.companyId);
+  const jobNumberId = await findOrCreateMasterDataItem('job_numbers', job_number, req.companyId);
+  const costCodeId = await findOrCreateMasterDataItem('cost_codes', cost_code, req.companyId);
+
   // Validation: job_number and cost_code are required
   if (!job_number || !cost_code) {
     return res.status(400).json({ 
@@ -633,7 +587,7 @@ router.put('/:id', (req, res) => {
   
   const query = `
     UPDATE transactions 
-    SET description = ?, amount = ?, category = ?, job_number = ?, cost_code = ?, 
+    SET description = ?, amount = ?, category = ?, category_id = ?, job_number = ?, job_number_id = ?, cost_code = ?, cost_code_id = ?,
         updated_by = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ? AND company_id = ?
   `;
@@ -642,8 +596,11 @@ router.put('/:id', (req, res) => {
     description, 
     amount, 
     category, 
+    categoryId,
     job_number, 
+    jobNumberId,
     cost_code, 
+    costCodeId,
     req.userId, 
     req.params.id, 
     req.companyId

@@ -164,6 +164,15 @@ const Navbar = () => {
                   >
                     🏢 Company Settings
                   </Link>
+                  {user?.currentRole === 'admin' && (
+                    <Link 
+                      to="/master-data-settings" 
+                      className="dropdown-item"
+                      onClick={() => setShowUserMenu(false)}
+                    >
+                      🗄️ Master Data Settings
+                    </Link>
+                  )}
                   <hr />
                   <button className="dropdown-item logout" onClick={handleLogout}>
                     🚪 Logout

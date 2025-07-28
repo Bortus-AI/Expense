@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { transactionAPI, companyAPI, api } from '../services/api';
+import { transactionAPI, companyAPI, masterDataAPI, api } from '../services/api';
 import { toast } from 'react-toastify';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -9,6 +9,11 @@ const Transactions = () => {
   const [pagination, setPagination] = useState({});
   const [loading, setLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
+  
+  // Master data lists
+  const [categories, setCategories] = useState([]);
+  const [jobNumbers, setJobNumbers] = useState([]);
+  const [costCodes, setCostCodes] = useState([]);
   
   // Admin filtering state
   const [companyUsers, setCompanyUsers] = useState([]);
@@ -35,8 +40,25 @@ const Transactions = () => {
     // Only load company users if user is admin and fully loaded
     if (user?.currentRole === 'admin' && user?.currentCompany?.id) {
       loadCompanyUsers();
+      loadMasterData();
     }
   }, [currentPage, filters, user?.currentRole, user?.currentCompany?.id]);
+
+  const loadMasterData = async () => {
+    try {
+      const [categoriesRes, jobNumbersRes, costCodesRes] = await Promise.all([
+        masterDataAPI.getCategories(),
+        masterDataAPI.getJobNumbers(),
+        masterDataAPI.getCostCodes()
+      ]);
+      setCategories(categoriesRes.data);
+      setJobNumbers(jobNumbersRes.data);
+      setCostCodes(costCodesRes.data);
+    } catch (error) {
+      console.error('Error loading master data:', error);
+      toast.error('Failed to load master data for dropdowns.');
+    }
+  };
 
   const loadCompanyUsers = async () => {
     try {
@@ -148,10 +170,10 @@ const Transactions = () => {
     setEditingTransaction(transaction.id);
     setEditFormData({
       description: transaction.description || '',
-      category: transaction.category || '',
+      category: transaction.category_name || '',
       amount: transaction.amount || '',
-      job_number: transaction.job_number || '',
-      cost_code: transaction.cost_code || ''
+      job_number: transaction.job_number_name || '',
+      cost_code: transaction.cost_code_name || ''
     });
   };
 
@@ -277,12 +299,9 @@ const Transactions = () => {
                     className="form-select"
                   >
                     <option value="">All Categories</option>
-                    <option value="food">Food & Dining</option>
-                    <option value="transportation">Transportation</option>
-                    <option value="utilities">Utilities</option>
-                    <option value="entertainment">Entertainment</option>
-                    <option value="shopping">Shopping</option>
-                    <option value="healthcare">Healthcare</option>
+                    {categories.map(cat => (
+                      <option key={cat.id} value={cat.name}>{cat.name}</option>
+                    ))}
                   </select>
                 </div>
                 
@@ -431,19 +450,13 @@ const Transactions = () => {
                             onChange={(e) => handleEditChange('category', e.target.value)}
                           >
                             <option value="">Select Category</option>
-                            <option value="food">Food & Dining</option>
-                            <option value="transportation">Transportation</option>
-                            <option value="utilities">Utilities</option>
-                            <option value="entertainment">Entertainment</option>
-                            <option value="shopping">Shopping</option>
-                            <option value="healthcare">Healthcare</option>
-                            <option value="office">Office Supplies</option>
-                            <option value="travel">Travel</option>
-                            <option value="other">Other</option>
+                            {categories.map(cat => (
+                              <option key={cat.id} value={cat.name}>{cat.name}</option>
+                            ))}
                           </select>
                         ) : (
-                          <span className={`badge ${transaction.category ? 'badge-info' : 'badge-warning'}`}>
-                            {transaction.category || 'Not set'}
+                          <span className={`badge ${transaction.category_name ? 'badge-info' : 'badge-warning'}`}>
+                            {transaction.category_name || 'Not set'}
                           </span>
                         )}
                       </td>
@@ -451,17 +464,20 @@ const Transactions = () => {
                       {/* Job Number */}
                       <td>
                         {editingTransaction === transaction.id ? (
-                          <input
-                            type="text"
-                            className="form-input"
+                          <select
+                            className="form-select"
                             value={editFormData.job_number}
                             onChange={(e) => handleEditChange('job_number', e.target.value)}
-                            placeholder="Job Number"
-                          />
+                          >
+                            <option value="">Select Job Number</option>
+                            {jobNumbers.map(jn => (
+                              <option key={jn.id} value={jn.name}>{jn.name}</option>
+                            ))}
+                          </select>
                         ) : (
                           <div className="text-sm">
-                            {transaction.job_number ? (
-                              <span className="badge badge-success">{transaction.job_number}</span>
+                            {transaction.job_number_name ? (
+                              <span className="badge badge-success">{transaction.job_number_name}</span>
                             ) : (
                               <span className="text-danger">Required</span>
                             )}
@@ -472,17 +488,20 @@ const Transactions = () => {
                       {/* Cost Code */}
                       <td>
                         {editingTransaction === transaction.id ? (
-                          <input
-                            type="text"
-                            className="form-input"
+                          <select
+                            className="form-select"
                             value={editFormData.cost_code}
                             onChange={(e) => handleEditChange('cost_code', e.target.value)}
-                            placeholder="Cost Code"
-                          />
+                          >
+                            <option value="">Select Cost Code</option>
+                            {costCodes.map(cc => (
+                              <option key={cc.id} value={cc.name}>{cc.name}</option>
+                            ))}
+                          </select>
                         ) : (
                           <div className="text-sm">
-                            {transaction.cost_code ? (
-                              <span className="badge badge-success">{transaction.cost_code}</span>
+                            {transaction.cost_code_name ? (
+                              <span className="badge badge-success">{transaction.cost_code_name}</span>
                             ) : (
                               <span className="text-danger">Required</span>
                             )}

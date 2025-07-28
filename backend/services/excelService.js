@@ -229,6 +229,7 @@ class ExcelService {
       'Cost Code',
       'Transaction ID',
       'Sales Tax',
+      'User',
       'Status',
       'Receipt Count'
     ];
@@ -260,26 +261,28 @@ class ExcelService {
       sheet.getCell(rowIndex, 3).value = parseFloat(transaction.amount || 0);
       sheet.getCell(rowIndex, 3).numFmt = '"$"#,##0.00';
       
-      sheet.getCell(rowIndex, 4).value = transaction.category || '';
-      sheet.getCell(rowIndex, 5).value = transaction.job_number || '';
-      sheet.getCell(rowIndex, 6).value = transaction.cost_code || '';
+      sheet.getCell(rowIndex, 4).value = transaction.category_name || '';
+      sheet.getCell(rowIndex, 5).value = transaction.job_number_name || '';
+      sheet.getCell(rowIndex, 6).value = transaction.cost_code_name || '';
       sheet.getCell(rowIndex, 7).value = transaction.external_transaction_id || '';
       
       sheet.getCell(rowIndex, 8).value = parseFloat(transaction.sales_tax || 0);
       sheet.getCell(rowIndex, 8).numFmt = '"$"#,##0.00';
+
+      sheet.getCell(rowIndex, 9).value = transaction.user_name || '';
       
       const status = transaction.receipt_count > 0 ? 'Matched' : 'Unmatched';
-      sheet.getCell(rowIndex, 9).value = status;
+      sheet.getCell(rowIndex, 10).value = status;
       
       // Style status cell
-      const statusCell = sheet.getCell(rowIndex, 9);
+      const statusCell = sheet.getCell(rowIndex, 10);
       if (status === 'Matched') {
         statusCell.style = this.getStatusStyle('matched');
       } else {
         statusCell.style = this.getStatusStyle('unmatched');
       }
       
-      sheet.getCell(rowIndex, 10).value = transaction.receipt_count || 0;
+      sheet.getCell(rowIndex, 11).value = transaction.receipt_count || 0;
     });
 
     // Auto-fit columns
@@ -292,6 +295,7 @@ class ExcelService {
       { width: 15 }, // Cost Code
       { width: 20 }, // Transaction ID
       { width: 12 }, // Sales Tax
+      { width: 20 }, // User
       { width: 12 }, // Status
       { width: 12 }  // Receipt Count
     ];

@@ -350,77 +350,59 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* Missing Fields Alert */}
+          {/* Refined Data Quality Alert */}
           {missingFields.incompleteTransactions > 0 && (
-            <div className="card mb-3 enhanced" style={{ border: '2px solid #f56565' }}>
+            <div className="card mb-3 enhanced-alert" style={{ border: '1px solid #f5c6cb', backgroundColor: '#fffafa' }}>
               <div className="card-header">
                 <h3 className="card-title">
-                  <span className="status-indicator offline"></span>
-                  Data Quality Alert
+                  <span className="status-indicator warning"></span>
+                  Action Required: Improve Data Quality
                 </h3>
                 <div className="text-sm text-gray">
-                  {user?.currentRole === 'admin' ? 'Company-wide' : 'Your'} transactions missing required information
+                  You have <strong>{missingFields.incompleteTransactions}</strong> transactions missing key information.
                 </div>
               </div>
               
-              <div className="grid grid-4 mb-3">
-                <div className="card">
-                  <div className="card-header">
-                    <h4 className="card-title text-danger">Missing Description</h4>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xl text-danger">{missingFields.missingDescription || 0}</div>
-                    <div className="text-sm text-gray">transactions</div>
-                  </div>
-                </div>
-                
-                <div className="card">
-                  <div className="card-header">
-                    <h4 className="card-title text-danger">Missing Category</h4>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xl text-danger">{missingFields.missingCategory || 0}</div>
-                    <div className="text-sm text-gray">transactions</div>
-                  </div>
-                </div>
-                
-                <div className="card">
-                  <div className="card-header">
-                    <h4 className="card-title text-danger">Missing Job Number</h4>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xl text-danger">{missingFields.missingJobNumber || 0}</div>
-                    <div className="text-sm text-gray">transactions</div>
-                  </div>
-                </div>
-                
-                <div className="card">
-                  <div className="card-header">
-                    <h4 className="card-title text-danger">Missing Cost Code</h4>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xl text-danger">{missingFields.missingCostCode || 0}</div>
-                    <div className="text-sm text-gray">transactions</div>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="card">
-                <div className="card-header">
-                  <h4 className="card-title">Completion Progress</h4>
-                  <div className="text-sm text-gray">{missingFields.completionRate || 0}% of transactions complete</div>
-                </div>
-                <div className="progress-bar mb-3">
+              <div className="p-3">
+                <p className="text-sm text-gray mb-2">
+                  <strong>Completion Rate:</strong> {missingFields.completionRate || 0}% of transactions are complete.
+                </p>
+                <div className="progress-bar mb-3" style={{ width: '75%', margin: '0 auto' }}>
                   <div 
                     className="progress-fill bg-success" 
                     style={{ width: `${missingFields.completionRate || 0}%` }}
                   ></div>
                 </div>
+
+                <ul className="list-group mb-3">
+                  {missingFields.missingDescription > 0 && (
+                    <li className="list-group-item flex-between">
+                      <span>Missing Description:</span>
+                      <span className="font-bold text-warning">{missingFields.missingDescription} ({missingFields.missingDescriptionPercentage}%)</span>
+                    </li>
+                  )}
+                  {missingFields.missingCategory > 0 && (
+                    <li className="list-group-item flex-between">
+                      <span>Missing Category:</span>
+                      <span className="font-bold text-warning">{missingFields.missingCategory} ({missingFields.missingCategoryPercentage}%)</span>
+                    </li>
+                  )}
+                  {missingFields.missingJobNumber > 0 && (
+                    <li className="list-group-item flex-between">
+                      <span>Missing Job Number:</span>
+                      <span className="font-bold text-warning">{missingFields.missingJobNumber} ({missingFields.missingJobNumberPercentage}%)</span>
+                    </li>
+                  )}
+                  {missingFields.missingCostCode > 0 && (
+                    <li className="list-group-item flex-between">
+                      <span>Missing Cost Code:</span>
+                      <span className="font-bold text-warning">{missingFields.missingCostCode} ({missingFields.missingCostCodePercentage}%)</span>
+                    </li>
+                  )}
+                </ul>
+
                 <div className="text-center">
-                  <p className="text-sm text-gray mb-3">
-                    <strong>{missingFields.incompleteTransactions || 0}</strong> of <strong>{missingFields.totalTransactions || 0}</strong> transactions need attention
-                  </p>
-                  <Link to="/transactions" className="btn btn-primary">
+                  <Link to="/transactions" className="btn btn-primary pulsating-button">
                     Complete Missing Information
                   </Link>
                 </div>
