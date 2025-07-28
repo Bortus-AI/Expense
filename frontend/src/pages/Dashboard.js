@@ -17,6 +17,7 @@ const Dashboard = () => {
   const [monthlyTrends, setMonthlyTrends] = useState([]);
   const [topCategories, setTopCategories] = useState([]);
   const [systemHealth, setSystemHealth] = useState({});
+  const [missingFields, setMissingFields] = useState({});
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
   const [refreshInterval, setRefreshInterval] = useState(null);
@@ -58,13 +59,16 @@ const Dashboard = () => {
       const matchesResponse = await matchAPI.getPending();
       setPendingMatches(matchesResponse.data.slice(0, 10) || []);
 
-      // Load analytics data (if admin)
-      if (user?.currentRole === 'admin') {
-        try {
-          const analyticsResponse = await analyticsAPI.getDashboard();
-          const analyticsData = analyticsResponse.data;
-          setAnalytics(analyticsData);
-          setFinancialSummary(analyticsData.financial || {});
+      // Load analytics data for all users
+      try {
+        const analyticsResponse = await analyticsAPI.getDashboard();
+        const analyticsData = analyticsResponse.data;
+        setAnalytics(analyticsData);
+        setFinancialSummary(analyticsData.financial || {});
+        setMissingFields(analyticsData.missingFields || {});
+        
+        // Admin-specific data
+        if (user?.currentRole === 'admin') {
           setUserActivity(analyticsData.activity || []);
           setProcessingMetrics(analyticsData.processing || {});
           setMonthlyTrends(analyticsData.trends || []);
@@ -73,9 +77,9 @@ const Dashboard = () => {
           // Calculate system health
           const health = calculateSystemHealth(analyticsData);
           setSystemHealth(health);
-        } catch (error) {
-          console.log('Analytics not available:', error);
         }
+      } catch (error) {
+        console.log('Analytics not available:', error);
       }
 
     } catch (error) {
@@ -346,6 +350,84 @@ const Dashboard = () => {
             </div>
           </div>
 
+          {/* Missing Fields Alert */}
+          {missingFields.incompleteTransactions > 0 && (
+            <div className="card mb-3 enhanced" style={{ border: '2px solid #f56565' }}>
+              <div className="card-header">
+                <h3 className="card-title">
+                  <span className="status-indicator offline"></span>
+                  Data Quality Alert
+                </h3>
+                <div className="text-sm text-gray">
+                  {user?.currentRole === 'admin' ? 'Company-wide' : 'Your'} transactions missing required information
+                </div>
+              </div>
+              
+              <div className="grid grid-4 mb-3">
+                <div className="card">
+                  <div className="card-header">
+                    <h4 className="card-title text-danger">Missing Description</h4>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xl text-danger">{missingFields.missingDescription || 0}</div>
+                    <div className="text-sm text-gray">transactions</div>
+                  </div>
+                </div>
+                
+                <div className="card">
+                  <div className="card-header">
+                    <h4 className="card-title text-danger">Missing Category</h4>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xl text-danger">{missingFields.missingCategory || 0}</div>
+                    <div className="text-sm text-gray">transactions</div>
+                  </div>
+                </div>
+                
+                <div className="card">
+                  <div className="card-header">
+                    <h4 className="card-title text-danger">Missing Job Number</h4>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xl text-danger">{missingFields.missingJobNumber || 0}</div>
+                    <div className="text-sm text-gray">transactions</div>
+                  </div>
+                </div>
+                
+                <div className="card">
+                  <div className="card-header">
+                    <h4 className="card-title text-danger">Missing Cost Code</h4>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xl text-danger">{missingFields.missingCostCode || 0}</div>
+                    <div className="text-sm text-gray">transactions</div>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="card">
+                <div className="card-header">
+                  <h4 className="card-title">Completion Progress</h4>
+                  <div className="text-sm text-gray">{missingFields.completionRate || 0}% of transactions complete</div>
+                </div>
+                <div className="progress-bar mb-3">
+                  <div 
+                    className="progress-fill bg-success" 
+                    style={{ width: `${missingFields.completionRate || 0}%` }}
+                  ></div>
+                </div>
+                <div className="text-center">
+                  <p className="text-sm text-gray mb-3">
+                    <strong>{missingFields.incompleteTransactions || 0}</strong> of <strong>{missingFields.totalTransactions || 0}</strong> transactions need attention
+                  </p>
+                  <Link to="/transactions" className="btn btn-primary">
+                    Complete Missing Information
+                  </Link>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Quick Stats Row */}
           {user?.currentRole === 'admin' && (
             <div className="grid grid-4 mb-3">
@@ -548,7 +630,7 @@ const Dashboard = () => {
 
       {/* Analytics Tab */}
       {activeTab === 'analytics' && user?.currentRole === 'admin' && (
-        <div className="grid grid-2">
+        <div className="grid grid-3">
           <div className="card">
             <div className="card-header">
               <h3 className="card-title">Match Performance</h3>
@@ -613,6 +695,53 @@ const Dashboard = () => {
               <div className="metric-item">
                 <span>Auto-Match Success</span>
                 <span className="font-bold text-success">85%</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="card enhanced">
+            <div className="card-header">
+              <h3 className="card-title">
+                <span className="status-indicator warning"></span>
+                Data Quality
+              </h3>
+              <div className="text-sm text-gray">Transaction completeness</div>
+            </div>
+            <div className="p-3">
+              <div className="mb-3">
+                <div className="flex-between mb-1">
+                  <span>Completion Rate</span>
+                  <span className="font-bold">{missingFields.completionRate || 0}%</span>
+                </div>
+                <div className="progress-bar">
+                  <div 
+                    className="progress-fill bg-success" 
+                    style={{ width: `${missingFields.completionRate || 0}%` }}
+                  ></div>
+                </div>
+              </div>
+              
+              <div className="metric-item">
+                <span>Missing Description</span>
+                <span className="font-bold text-danger">{missingFields.missingDescription || 0}</span>
+              </div>
+              <div className="metric-item">
+                <span>Missing Category</span>
+                <span className="font-bold text-danger">{missingFields.missingCategory || 0}</span>
+              </div>
+              <div className="metric-item">
+                <span>Missing Job Number</span>
+                <span className="font-bold text-danger">{missingFields.missingJobNumber || 0}</span>
+              </div>
+              <div className="metric-item">
+                <span>Missing Cost Code</span>
+                <span className="font-bold text-danger">{missingFields.missingCostCode || 0}</span>
+              </div>
+              
+              <div className="text-center mt-3">
+                <Link to="/transactions" className="btn btn-primary btn-sm">
+                  Complete Data
+                </Link>
               </div>
             </div>
           </div>

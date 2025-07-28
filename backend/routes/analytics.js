@@ -12,10 +12,8 @@ router.use(addUserTracking);
 
 // Dashboard analytics endpoint
 router.get('/dashboard', (req, res) => {
-  // Only admins can access analytics
-  if (req.user.currentRole !== 'admin') {
-    return res.status(403).json({ error: 'Access denied. Admin privileges required.' });
-  }
+  // Both admins and regular users can access basic analytics
+  // Admins see all company data, users see only their own data
 
   const companyId = req.companyId;
   const currentDate = moment();
@@ -26,7 +24,7 @@ router.get('/dashboard', (req, res) => {
   // Get financial summary
   const getFinancialSummary = () => {
     return new Promise((resolve, reject) => {
-      const query = `
+      let query = `
         SELECT 
           SUM(ABS(t.amount)) as total_expenses,
           SUM(CASE WHEN m.id IS NOT NULL THEN ABS(t.amount) ELSE 0 END) as matched_expenses,
@@ -38,8 +36,16 @@ router.get('/dashboard', (req, res) => {
         LEFT JOIN matches m ON t.id = m.transaction_id AND m.user_confirmed = 1
         WHERE t.company_id = ? AND t.transaction_date >= ?
       `;
+      
+      let queryParams = [companyId, startOfYear.format('YYYY-MM-DD')];
+      
+      // If user is not admin, only show their own transactions
+      if (req.user.currentRole !== 'admin') {
+        query += ' AND t.created_by = ?';
+        queryParams.push(req.user.id);
+      }
 
-      db.get(query, [companyId, startOfYear.format('YYYY-MM-DD')], (err, row) => {
+      db.get(query, queryParams, (err, row) => {
         if (err) {
           reject(err);
         } else {
@@ -58,10 +64,70 @@ router.get('/dashboard', (req, res) => {
     });
   };
 
+  // Get missing fields summary
+  const getMissingFieldsSummary = () => {
+    return new Promise((resolve, reject) => {
+      let query = `
+        SELECT 
+          COUNT(*) as total_transactions,
+          COUNT(CASE WHEN description IS NULL OR description = '' THEN 1 END) as missing_description,
+          COUNT(CASE WHEN category IS NULL OR category = '' THEN 1 END) as missing_category,
+          COUNT(CASE WHEN job_number IS NULL OR job_number = '' THEN 1 END) as missing_job_number,
+          COUNT(CASE WHEN cost_code IS NULL OR cost_code = '' THEN 1 END) as missing_cost_code,
+          COUNT(CASE WHEN 
+            (description IS NULL OR description = '') OR 
+            (category IS NULL OR category = '') OR 
+            (job_number IS NULL OR job_number = '') OR 
+            (cost_code IS NULL OR cost_code = '')
+            THEN 1 END) as incomplete_transactions,
+          COUNT(CASE WHEN 
+            (description IS NOT NULL AND description != '') AND 
+            (category IS NOT NULL AND category != '') AND 
+            (job_number IS NOT NULL AND job_number != '') AND 
+            (cost_code IS NOT NULL AND cost_code != '')
+            THEN 1 END) as complete_transactions
+        FROM transactions t
+        WHERE t.company_id = ?
+      `;
+      
+      let queryParams = [companyId];
+      
+      // If user is not admin, only show their own transactions
+      if (req.user.currentRole !== 'admin') {
+        query += ' AND t.created_by = ?';
+        queryParams.push(req.user.id);
+      }
+
+      db.get(query, queryParams, (err, row) => {
+        if (err) {
+          reject(err);
+        } else {
+          const totalTransactions = row.total_transactions || 0;
+          const incompleteTransactions = row.incomplete_transactions || 0;
+          const completeTransactions = row.complete_transactions || 0;
+          
+          resolve({
+            totalTransactions,
+            missingDescription: row.missing_description || 0,
+            missingCategory: row.missing_category || 0,
+            missingJobNumber: row.missing_job_number || 0,
+            missingCostCode: row.missing_cost_code || 0,
+            incompleteTransactions,
+            completeTransactions,
+            completionRate: totalTransactions > 0 ? 
+              Math.round((completeTransactions / totalTransactions) * 100) : 0,
+            incompleteRate: totalTransactions > 0 ? 
+              Math.round((incompleteTransactions / totalTransactions) * 100) : 0
+          });
+        }
+      });
+    });
+  };
+
   // Get top spending categories
   const getTopCategories = () => {
     return new Promise((resolve, reject) => {
-      const query = `
+      let query = `
         SELECT 
           t.category,
           SUM(ABS(t.amount)) as total_amount,
@@ -69,13 +135,24 @@ router.get('/dashboard', (req, res) => {
           AVG(ABS(t.amount)) as avg_amount
         FROM transactions t
         WHERE t.company_id = ? AND t.transaction_date >= ?
+      `;
+      
+      let queryParams = [companyId, startOfYear.format('YYYY-MM-DD')];
+      
+      // If user is not admin, only show their own transactions
+      if (req.user.currentRole !== 'admin') {
+        query += ' AND t.created_by = ?';
+        queryParams.push(req.user.id);
+      }
+      
+      query += `
         GROUP BY t.category
         HAVING t.category IS NOT NULL AND t.category != ''
         ORDER BY total_amount DESC
         LIMIT 10
       `;
 
-      db.all(query, [companyId, startOfYear.format('YYYY-MM-DD')], (err, rows) => {
+      db.all(query, queryParams, (err, rows) => {
         if (err) {
           reject(err);
         } else {
@@ -307,6 +384,7 @@ router.get('/dashboard', (req, res) => {
   // Execute all queries
   Promise.all([
     getFinancialSummary(),
+    getMissingFieldsSummary(),
     getTopCategories(),
     getMonthlyTrends(),
     getUserActivity(),
@@ -314,9 +392,10 @@ router.get('/dashboard', (req, res) => {
     getRecentActivity(),
     getSystemPerformance()
   ])
-  .then(([financial, categories, trends, users, processing, activity, performance]) => {
+  .then(([financial, missingFields, categories, trends, users, processing, activity, performance]) => {
     res.json({
       financial,
+      missingFields,
       categories,
       trends,
       users,
