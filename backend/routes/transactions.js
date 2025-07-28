@@ -6,7 +6,7 @@ const fs = require('fs');
 const multer = require('multer');
 const path = require('path');
 const moment = require('moment');
-const { authenticateToken, getUserCompanies, requireCompanyAccess, addUserTracking } = require('../middleware/auth');
+const { authenticateToken, getUserCompanies, requireCompanyAccess, requireRole, addUserTracking } = require('../middleware/auth');
 
 // Helper function to find or create a master data item
 const findOrCreateMasterDataItem = (tableName, name, companyId) => {
@@ -571,7 +571,7 @@ router.post('/import', csvUpload.single('csvFile'), (req, res) => {
 
 // Update transaction
 router.put('/:id', async (req, res) => {
-  const { description, amount, category, job_number, cost_code } = req.body;
+  const { description, amount, sales_tax, category, job_number, cost_code } = req.body;
   
   // Get IDs for category, job number, and cost code
   const categoryId = await findOrCreateMasterDataItem('categories', category, req.companyId);
@@ -587,7 +587,7 @@ router.put('/:id', async (req, res) => {
   
   const query = `
     UPDATE transactions 
-    SET description = ?, amount = ?, category = ?, category_id = ?, job_number = ?, job_number_id = ?, cost_code = ?, cost_code_id = ?,
+    SET description = ?, amount = ?, sales_tax = ?, category = ?, category_id = ?, job_number = ?, job_number_id = ?, cost_code = ?, cost_code_id = ?,
         updated_by = ?, updated_at = CURRENT_TIMESTAMP
     WHERE id = ? AND company_id = ?
   `;
@@ -595,6 +595,7 @@ router.put('/:id', async (req, res) => {
   db.run(query, [
     description, 
     amount, 
+    sales_tax, 
     category, 
     categoryId,
     job_number, 
@@ -616,6 +617,7 @@ router.put('/:id', async (req, res) => {
       updated: {
         description,
         amount,
+        sales_tax,
         category,
         job_number,
         cost_code
@@ -624,14 +626,14 @@ router.put('/:id', async (req, res) => {
   });
 });
 
-// Delete transaction
-router.delete('/:id', (req, res) => {
-  db.run('DELETE FROM transactions WHERE id = ?', [req.params.id], function(err) {
+// Delete transaction (admin only)
+router.delete('/:id', requireRole('admin'), (req, res) => {
+  db.run('DELETE FROM transactions WHERE id = ? AND company_id = ?', [req.params.id, req.companyId], function(err) {
     if (err) {
       return res.status(500).json({ error: err.message });
     }
     if (this.changes === 0) {
-      return res.status(404).json({ error: 'Transaction not found' });
+      return res.status(404).json({ error: 'Transaction not found or access denied' });
     }
     res.json({ message: 'Transaction deleted successfully' });
   });

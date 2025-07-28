@@ -11,12 +11,10 @@ const path = require('path');
 router.use(authenticateToken);
 router.use(getUserCompanies);
 router.use(requireCompanyAccess);
-router.use(requireRole('admin')); // Only admins can manage master data
 router.use(addUserTracking);
 
-// Helper function to manage master data (categories, job_numbers, cost_codes)
-const manageMasterData = (tableName) => {
-  // Get all items
+// Helper function to get master data (read-only, available to all users)
+const getMasterData = (tableName) => {
   router.get(`/${tableName}`, (req, res) => {
     const companyId = req.companyId;
     
@@ -48,6 +46,18 @@ const manageMasterData = (tableName) => {
       });
     }
   });
+};
+
+// Apply read-only routes for all users
+getMasterData('categories');
+getMasterData('job_numbers');
+getMasterData('cost_codes');
+
+// Admin-only routes for managing master data
+router.use(requireRole('admin')); // Only admins can manage master data
+
+// Helper function to manage master data (categories, job_numbers, cost_codes) - Admin only operations
+const manageMasterData = (tableName) => {
 
   // Add a new item
   router.post(`/${tableName}`, (req, res) => {

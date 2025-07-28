@@ -425,13 +425,18 @@ class PDFService {
       ['Average Transaction:', `$${stats.averageTransaction.toLocaleString('en-US', { minimumFractionDigits: 2 })}`]
     ];
 
+    // Calculate better column layout
+    const availableWidth = doc.page.width - (2 * this.pageMargin);
+    const labelWidth = availableWidth * 0.4;
+    const valueWidth = availableWidth * 0.5;
+
     summaryData.forEach(([label, value]) => {
-      doc.fontSize(11)
+      doc.fontSize(10)
          .fillColor(this.colors.text)
          .font('Helvetica')
-         .text(label, this.pageMargin, yPosition)
+         .text(label, this.pageMargin, yPosition, { width: labelWidth })
          .font('Helvetica-Bold')
-         .text(value, this.pageMargin + 150, yPosition);
+         .text(value, this.pageMargin + labelWidth + 10, yPosition, { width: valueWidth });
       yPosition += 18;
     });
 
@@ -446,18 +451,31 @@ class PDFService {
 
     yPosition += 25;
 
+    // Calculate available width and distribute columns properly
+    const availableWidth = doc.page.width - (2 * this.pageMargin);
+    const columnSpacing = 8;
+    const totalSpacing = columnSpacing * 9; // 10 columns = 9 spaces
+    
+    // Define column widths as percentages of available space
+    const columnPercentages = [8, 12, 8, 10, 6, 6, 8, 32, 6, 8]; // Must sum to 100
+    const columnWidths = columnPercentages.map(percent => 
+      Math.floor((availableWidth - totalSpacing) * percent / 100)
+    );
+
     // Table Headers
     const headers = ['Date', 'Transaction ID', 'Sales Tax', 'Amount', 'Job #', 'Cost Code', 'Category', 'Description', 'Receipt Status', 'User'];
-    const columnWidths = [50, 70, 50, 50, 50, 50, 60, 100, 60, 50];
     let xPosition = this.pageMargin;
 
-    doc.fontSize(10)
+    doc.fontSize(9)
        .fillColor(this.colors.text)
        .font('Helvetica-Bold');
 
     headers.forEach((header, index) => {
-      doc.text(header, xPosition, yPosition, { width: columnWidths[index] });
-      xPosition += columnWidths[index] + 10;
+      doc.text(header, xPosition, yPosition, { 
+        width: columnWidths[index],
+        align: 'left'
+      });
+      xPosition += columnWidths[index] + columnSpacing;
     });
 
     yPosition += 20;
@@ -473,7 +491,7 @@ class PDFService {
 
     // Table Rows
     doc.font('Helvetica')
-       .fontSize(9);
+       .fontSize(7);
 
     transactions.slice(0, 50).forEach(transaction => { // Limit to first 50
       if (yPosition > doc.page.height - 100) {
@@ -482,27 +500,32 @@ class PDFService {
       }
 
       xPosition = this.pageMargin;
+      
+      // Format data with proper truncation
       const rowData = [
         moment(transaction.transaction_date).format('MM/DD/YY'),
-        transaction.external_transaction_id || 'N/A',
-        transaction.sales_tax ? `${parseFloat(transaction.sales_tax).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : 'N/A',
-        `${parseFloat(transaction.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
-        transaction.job_number_name || 'N/A',
-        transaction.cost_code_name || 'N/A',
-        transaction.category_name || 'N/A',
-        transaction.description.substring(0, 20) + (transaction.description.length > 20 ? '...' : ''),
+        (transaction.external_transaction_id || 'N/A').substring(0, 12),
+        transaction.sales_tax ? `$${parseFloat(transaction.sales_tax).toFixed(2)}` : 'N/A',
+        `$${parseFloat(transaction.amount).toFixed(2)}`,
+        (transaction.job_number_name || 'N/A').substring(0, 8),
+        (transaction.cost_code_name || 'N/A').substring(0, 8),
+        (transaction.category_name || 'N/A').substring(0, 10),
+        (transaction.description || 'N/A').substring(0, 50),
         transaction.receipt_count > 0 ? 'Matched' : 'Unmatched',
-        transaction.user_name || 'N/A'
+        this.formatUserName(transaction.user_name || 'N/A')
       ];
 
       rowData.forEach((data, index) => {
         const color = index === 8 ? (data === 'Matched' ? this.colors.accent : this.colors.danger) : this.colors.text;
         doc.fillColor(color)
-           .text(data, xPosition, yPosition, { width: columnWidths[index] });
-        xPosition += columnWidths[index] + 10;
+           .text(data, xPosition, yPosition, { 
+             width: columnWidths[index],
+             align: 'left'
+           });
+        xPosition += columnWidths[index] + columnSpacing;
       });
 
-      yPosition += 15;
+      yPosition += 10;
     });
 
     if (transactions.length > 50) {
@@ -687,18 +710,22 @@ class PDFService {
       ['Most Expensive:', `$${analytics.highestTransaction?.toLocaleString('en-US', { minimumFractionDigits: 2 }) || '0.00'}`]
     ];
 
-    const colWidth = (doc.page.width - 2 * this.pageMargin) / 2;
+    // Calculate better column layout
+    const availableWidth = doc.page.width - (2 * this.pageMargin);
+    const labelWidth = availableWidth * 0.4;
+    const valueWidth = availableWidth * 0.5;
+    const colWidth = availableWidth / 2;
     let col = 0;
 
     metrics.forEach(([label, value], index) => {
       const xPos = this.pageMargin + (col * colWidth);
       
-      doc.fontSize(11)
+      doc.fontSize(10)
          .fillColor(this.colors.text)
          .font('Helvetica')
-         .text(label, xPos, yPosition)
+         .text(label, xPos, yPosition, { width: labelWidth })
          .font('Helvetica-Bold')
-         .text(value, xPos + 130, yPosition);
+         .text(value, xPos + labelWidth + 10, yPosition, { width: valueWidth });
 
       if (index % 2 === 1) {
         yPosition += 18;
@@ -717,6 +744,35 @@ class PDFService {
        .fillColor(this.colors.lightText)
        .text(`Generated by Expense Receipt Matcher • Page ${doc.bufferedPageRange().count}`, 
              this.pageMargin, footerY, { align: 'center' });
+  }
+
+  formatUserName(userName) {
+    if (!userName || userName === 'N/A') return 'N/A';
+    
+    // Split the name into parts
+    const nameParts = userName.trim().split(' ');
+    
+    if (nameParts.length === 1) {
+      // Single name - truncate if too long
+      return nameParts[0].substring(0, 12);
+    } else if (nameParts.length === 2) {
+      // First and last name - use initials for first name if needed
+      const firstName = nameParts[0];
+      const lastName = nameParts[1];
+      
+      if (firstName.length <= 3) {
+        // Short first name - use full first name + truncated last name
+        return `${firstName} ${lastName.substring(0, 8)}`;
+      } else {
+        // Long first name - use initial + last name
+        return `${firstName.charAt(0)}. ${lastName.substring(0, 8)}`;
+      }
+    } else {
+      // Multiple names - use first initial + last name
+      const firstName = nameParts[0];
+      const lastName = nameParts[nameParts.length - 1];
+      return `${firstName.charAt(0)}. ${lastName.substring(0, 8)}`;
+    }
   }
 
   calculateTransactionStats(transactions) {
@@ -777,13 +833,38 @@ class PDFService {
 
     yPosition += 25;
 
+    // Calculate column widths for better formatting
+    const availableWidth = doc.page.width - (2 * this.pageMargin);
+    const categoryWidth = availableWidth * 0.5;
+    const amountWidth = availableWidth * 0.25;
+    const percentageWidth = availableWidth * 0.2;
+
+    // Add headers
+    doc.fontSize(10)
+       .fillColor(this.colors.text)
+       .font('Helvetica-Bold')
+       .text('Category', this.pageMargin, yPosition, { width: categoryWidth })
+       .text('Amount', this.pageMargin + categoryWidth + 10, yPosition, { width: amountWidth })
+       .text('Percentage', this.pageMargin + categoryWidth + amountWidth + 20, yPosition, { width: percentageWidth });
+
+    yPosition += 15;
+
+    // Header line
+    doc.strokeColor(this.colors.lightText)
+       .lineWidth(1)
+       .moveTo(this.pageMargin, yPosition)
+       .lineTo(doc.page.width - this.pageMargin, yPosition)
+       .stroke();
+
+    yPosition += 10;
+
     categories.forEach(category => {
-      doc.fontSize(11)
+      doc.fontSize(10)
          .fillColor(this.colors.text)
          .font('Helvetica')
-         .text(category.name, this.pageMargin, yPosition)
-         .text(`$${category.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, this.pageMargin + 200, yPosition)
-         .text(`${category.percentage}%`, this.pageMargin + 300, yPosition);
+         .text(category.name.substring(0, 40), this.pageMargin, yPosition, { width: categoryWidth })
+         .text(`$${category.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, this.pageMargin + categoryWidth + 10, yPosition, { width: amountWidth })
+         .text(`${category.percentage}%`, this.pageMargin + categoryWidth + amountWidth + 20, yPosition, { width: percentageWidth });
       yPosition += 15;
     });
 
@@ -800,12 +881,35 @@ class PDFService {
 
     yPosition += 25;
 
+    // Calculate column widths for better formatting
+    const availableWidth = doc.page.width - (2 * this.pageMargin);
+    const monthWidth = availableWidth * 0.4;
+    const amountWidth = availableWidth * 0.5;
+
+    // Add headers
+    doc.fontSize(10)
+       .fillColor(this.colors.text)
+       .font('Helvetica-Bold')
+       .text('Month', this.pageMargin, yPosition, { width: monthWidth })
+       .text('Amount', this.pageMargin + monthWidth + 10, yPosition, { width: amountWidth });
+
+    yPosition += 15;
+
+    // Header line
+    doc.strokeColor(this.colors.lightText)
+       .lineWidth(1)
+       .moveTo(this.pageMargin, yPosition)
+       .lineTo(doc.page.width - this.pageMargin, yPosition)
+       .stroke();
+
+    yPosition += 10;
+
     trends.forEach(trend => {
       doc.fontSize(10)
          .fillColor(this.colors.text)
          .font('Helvetica')
-         .text(`${trend.month}: $${trend.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, 
-               this.pageMargin, yPosition);
+         .text(trend.month, this.pageMargin, yPosition, { width: monthWidth })
+         .text(`$${trend.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, this.pageMargin + monthWidth + 10, yPosition, { width: amountWidth });
       yPosition += 12;
     });
 
@@ -850,13 +954,18 @@ class PDFService {
       ['Match Rate:', `${data.matchRate || 0}%`]
     ];
 
+    // Calculate better column layout
+    const availableWidth = doc.page.width - (2 * this.pageMargin);
+    const labelWidth = availableWidth * 0.4;
+    const valueWidth = availableWidth * 0.3;
+
     summary.forEach(([label, value]) => {
-      doc.fontSize(11)
+      doc.fontSize(10)
          .fillColor(this.colors.text)
          .font('Helvetica')
-         .text(label, this.pageMargin, yPosition)
+         .text(label, this.pageMargin, yPosition, { width: labelWidth })
          .font('Helvetica-Bold')
-         .text(value.toString(), this.pageMargin + 150, yPosition);
+         .text(value.toString(), this.pageMargin + labelWidth + 10, yPosition, { width: valueWidth });
       yPosition += 18;
     });
 

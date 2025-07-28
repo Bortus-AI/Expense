@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { transactionAPI, companyAPI, masterDataAPI, api } from '../services/api';
+import { transactionAPI, companyAPI, masterDataAPI } from '../services/api';
 import { toast } from 'react-toastify';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -38,10 +38,13 @@ const Transactions = () => {
 
   useEffect(() => {
     loadTransactions(currentPage);
-    // Only load company users if user is admin and fully loaded
-    if (user?.currentRole === 'admin' && user?.currentCompany?.id) {
-      loadCompanyUsers();
+    // Load master data for all users (needed for editing transactions)
+    if (user?.currentCompany?.id) {
       loadMasterData();
+      // Only load company users if user is admin
+      if (user?.currentRole === 'admin') {
+        loadCompanyUsers();
+      }
     }
   }, [currentPage, filters, user?.currentRole, user?.currentCompany?.id]);
 
@@ -174,6 +177,7 @@ const Transactions = () => {
       description: transaction.description || '',
       category: transaction.category_name || '',
       amount: transaction.amount || '',
+      sales_tax: transaction.sales_tax || '',
       job_number: transaction.job_number_name || '',
       cost_code: transaction.cost_code_name || ''
     });
@@ -262,6 +266,7 @@ const Transactions = () => {
         description: editFormData.description,
         category: editFormData.category,
         amount: parseFloat(editFormData.amount),
+        sales_tax: editFormData.sales_tax ? parseFloat(editFormData.sales_tax) : null,
         job_number: editFormData.job_number,
         cost_code: editFormData.cost_code
       });
@@ -487,7 +492,18 @@ const Transactions = () => {
                       
                       {/* Sales Tax */}
                       <td>
-                        {transaction.sales_tax ? formatAmount(transaction.sales_tax) : 'N/A'}
+                        {editingTransaction === transaction.id ? (
+                          <input
+                            type="number"
+                            step="0.01"
+                            className="form-input"
+                            value={editFormData.sales_tax}
+                            onChange={(e) => handleEditChange('sales_tax', e.target.value)}
+                            placeholder="0.00"
+                          />
+                        ) : (
+                          transaction.sales_tax ? formatAmount(transaction.sales_tax) : 'N/A'
+                        )}
                       </td>
                       
                       {/* Amount */}
@@ -649,12 +665,14 @@ const Transactions = () => {
                             >
                               Edit
                             </button>
-                            <button
-                              className="btn btn-sm btn-danger"
-                              onClick={() => handleDelete(transaction.id, transaction.description)}
-                            >
-                              Delete
-                            </button>
+                            {user?.currentRole === 'admin' && (
+                              <button
+                                className="btn btn-sm btn-danger"
+                                onClick={() => handleDelete(transaction.id, transaction.description)}
+                              >
+                                Delete
+                              </button>
+                            )}
                           </div>
                         )}
                       </td>
