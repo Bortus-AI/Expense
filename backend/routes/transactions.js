@@ -320,6 +320,10 @@ router.post('/import', csvUpload.single('csvFile'), (req, res) => {
       const amount = parseFloat(row['Amount']) || 0;
       const category = row['Category'] || '';
       
+      // Extract job number and cost code from CSV if available
+      const jobNumber = row['Job Number'] || row['JobNumber'] || row['job_number'] || row['Job'] || '';
+      const costCode = row['Cost Code'] || row['CostCode'] || row['cost_code'] || row['Code'] || '';
+      
       // Extract additional fields if available - try multiple column name variants
       let externalTransactionId = 
         row['Transaction ID'] || 
@@ -424,6 +428,8 @@ router.post('/import', csvUpload.single('csvFile'), (req, res) => {
         description: description,
         amount: amount,
         category: category,
+        job_number: jobNumber,
+        cost_code: costCode,
         chase_transaction_id: chaseTransactionId,
         external_transaction_id: externalTransactionId,
         sales_tax: salesTax,
@@ -440,6 +446,15 @@ router.post('/import', csvUpload.single('csvFile'), (req, res) => {
         matched: 0,
         unmatched: 0,
         adminAssigned: 0,
+        details: []
+      };
+      
+      // Track transactions missing required fields
+      const missingFieldsResults = {
+        missingJobNumber: 0,
+        missingCostCode: 0,
+        missingBoth: 0,
+        complete: 0,
         details: []
       };
 
@@ -489,6 +504,31 @@ router.post('/import', csvUpload.single('csvFile'), (req, res) => {
           status: matchStatus
         });
 
+        // Track missing required fields
+        const missingJobNumber = !transaction.job_number;
+        const missingCostCode = !transaction.cost_code;
+        
+        if (missingJobNumber && missingCostCode) {
+          missingFieldsResults.missingBoth++;
+        } else if (missingJobNumber) {
+          missingFieldsResults.missingJobNumber++;
+        } else if (missingCostCode) {
+          missingFieldsResults.missingCostCode++;
+        } else {
+          missingFieldsResults.complete++;
+        }
+
+        if (missingJobNumber || missingCostCode) {
+          missingFieldsResults.details.push({
+            row: i + 1,
+            description: transaction.description.substring(0, 50),
+            missingFields: [
+              ...(missingJobNumber ? ['Job Number'] : []),
+              ...(missingCostCode ? ['Cost Code'] : [])
+            ]
+          });
+        }
+
         processedTransactions.push({
           ...transaction,
           assignedUserId,
@@ -503,11 +543,18 @@ router.post('/import', csvUpload.single('csvFile'), (req, res) => {
       console.log(`   • Assigned to admin: ${userMatchResults.adminAssigned}`);
       console.log(`   • Total processed: ${transactions.length}\n`);
 
+      console.log(`📋 REQUIRED FIELDS SUMMARY:`);
+      console.log(`   • Complete transactions: ${missingFieldsResults.complete}`);
+      console.log(`   • Missing job number only: ${missingFieldsResults.missingJobNumber}`);
+      console.log(`   • Missing cost code only: ${missingFieldsResults.missingCostCode}`);
+      console.log(`   • Missing both fields: ${missingFieldsResults.missingBoth}`);
+      console.log(`   • Total incomplete: ${missingFieldsResults.missingJobNumber + missingFieldsResults.missingCostCode + missingFieldsResults.missingBoth}\n`);
+
       // Insert transactions into database with user assignments
       const stmt = db.prepare(`
         INSERT OR IGNORE INTO transactions 
-        (transaction_date, description, amount, category, chase_transaction_id, external_transaction_id, sales_tax, company_id, created_by, updated_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (transaction_date, description, amount, category, job_number, cost_code, chase_transaction_id, external_transaction_id, sales_tax, company_id, created_by, updated_by)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
       processedTransactions.forEach((transaction) => {
@@ -516,6 +563,8 @@ router.post('/import', csvUpload.single('csvFile'), (req, res) => {
           transaction.description,
           transaction.amount,
           transaction.category,
+          transaction.job_number || null,   // job_number (from CSV or null)
+          transaction.cost_code || null,    // cost_code (from CSV or null)
           transaction.chase_transaction_id,
           transaction.external_transaction_id,
           transaction.sales_tax,
@@ -554,6 +603,14 @@ router.post('/import', csvUpload.single('csvFile'), (req, res) => {
             unmatched: userMatchResults.unmatched,
             adminAssigned: userMatchResults.adminAssigned,
             details: userMatchResults.details.slice(0, 20) // Limit details to first 20 for response size
+          },
+          missingRequiredFields: {
+            complete: missingFieldsResults.complete,
+            missingJobNumber: missingFieldsResults.missingJobNumber,
+            missingCostCode: missingFieldsResults.missingCostCode,
+            missingBoth: missingFieldsResults.missingBoth,
+            totalIncomplete: missingFieldsResults.missingJobNumber + missingFieldsResults.missingCostCode + missingFieldsResults.missingBoth,
+            details: missingFieldsResults.details.slice(0, 20) // Limit details to first 20 for response size
           }
         });
       });
@@ -565,22 +622,48 @@ router.post('/import', csvUpload.single('csvFile'), (req, res) => {
 
 // Update transaction
 router.put('/:id', (req, res) => {
-  const { description, amount, category } = req.body;
+  const { description, amount, category, job_number, cost_code } = req.body;
+  
+  // Validation: job_number and cost_code are required
+  if (!job_number || !cost_code) {
+    return res.status(400).json({ 
+      error: 'Job number and cost code are required fields' 
+    });
+  }
   
   const query = `
     UPDATE transactions 
-    SET description = ?, amount = ?, category = ?, updated_at = CURRENT_TIMESTAMP
-    WHERE id = ?
+    SET description = ?, amount = ?, category = ?, job_number = ?, cost_code = ?, 
+        updated_by = ?, updated_at = CURRENT_TIMESTAMP
+    WHERE id = ? AND company_id = ?
   `;
 
-  db.run(query, [description, amount, category, req.params.id], function(err) {
+  db.run(query, [
+    description, 
+    amount, 
+    category, 
+    job_number, 
+    cost_code, 
+    req.userId, 
+    req.params.id, 
+    req.companyId
+  ], function(err) {
     if (err) {
       return res.status(500).json({ error: err.message });
     }
     if (this.changes === 0) {
-      return res.status(404).json({ error: 'Transaction not found' });
+      return res.status(404).json({ error: 'Transaction not found or access denied' });
     }
-    res.json({ message: 'Transaction updated successfully' });
+    res.json({ 
+      message: 'Transaction updated successfully',
+      updated: {
+        description,
+        amount,
+        category,
+        job_number,
+        cost_code
+      }
+    });
   });
 });
 

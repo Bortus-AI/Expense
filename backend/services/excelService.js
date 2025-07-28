@@ -215,7 +215,7 @@ class ExcelService {
     const { title = 'Transactions', includeMatched = true, includeUnmatched = true } = options;
 
     // Header
-    sheet.mergeCells('A1:H1');
+    sheet.mergeCells('A1:J1');
     sheet.getCell('A1').value = title;
     sheet.getCell('A1').style = this.getHeaderStyle();
 
@@ -225,6 +225,8 @@ class ExcelService {
       'Description', 
       'Amount',
       'Category',
+      'Job Number',
+      'Cost Code',
       'Transaction ID',
       'Sales Tax',
       'Status',
@@ -259,23 +261,25 @@ class ExcelService {
       sheet.getCell(rowIndex, 3).numFmt = '"$"#,##0.00';
       
       sheet.getCell(rowIndex, 4).value = transaction.category || '';
-      sheet.getCell(rowIndex, 5).value = transaction.external_transaction_id || '';
+      sheet.getCell(rowIndex, 5).value = transaction.job_number || '';
+      sheet.getCell(rowIndex, 6).value = transaction.cost_code || '';
+      sheet.getCell(rowIndex, 7).value = transaction.external_transaction_id || '';
       
-      sheet.getCell(rowIndex, 6).value = parseFloat(transaction.sales_tax || 0);
-      sheet.getCell(rowIndex, 6).numFmt = '"$"#,##0.00';
+      sheet.getCell(rowIndex, 8).value = parseFloat(transaction.sales_tax || 0);
+      sheet.getCell(rowIndex, 8).numFmt = '"$"#,##0.00';
       
       const status = transaction.receipt_count > 0 ? 'Matched' : 'Unmatched';
-      sheet.getCell(rowIndex, 7).value = status;
+      sheet.getCell(rowIndex, 9).value = status;
       
       // Style status cell
-      const statusCell = sheet.getCell(rowIndex, 7);
+      const statusCell = sheet.getCell(rowIndex, 9);
       if (status === 'Matched') {
         statusCell.style = this.getStatusStyle('matched');
       } else {
         statusCell.style = this.getStatusStyle('unmatched');
       }
       
-      sheet.getCell(rowIndex, 8).value = transaction.receipt_count || 0;
+      sheet.getCell(rowIndex, 10).value = transaction.receipt_count || 0;
     });
 
     // Auto-fit columns
@@ -284,6 +288,8 @@ class ExcelService {
       { width: 40 }, // Description
       { width: 15 }, // Amount
       { width: 20 }, // Category
+      { width: 15 }, // Job Number
+      { width: 15 }, // Cost Code
       { width: 20 }, // Transaction ID
       { width: 12 }, // Sales Tax
       { width: 12 }, // Status
@@ -301,9 +307,9 @@ class ExcelService {
     sheet.getCell(totalRow, 3).style = this.getTotalStyle();
 
     const totalTax = filteredTransactions.reduce((sum, t) => sum + parseFloat(t.sales_tax || 0), 0);
-    sheet.getCell(totalRow, 6).value = totalTax;
-    sheet.getCell(totalRow, 6).numFmt = '"$"#,##0.00';
-    sheet.getCell(totalRow, 6).style = this.getTotalStyle();
+    sheet.getCell(totalRow, 8).value = totalTax;
+    sheet.getCell(totalRow, 8).numFmt = '"$"#,##0.00';
+    sheet.getCell(totalRow, 8).style = this.getTotalStyle();
   }
 
   setupReceiptsSheet(sheet, receipts, options = {}) {

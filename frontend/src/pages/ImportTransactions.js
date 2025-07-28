@@ -111,6 +111,39 @@ const ImportTransactions = () => {
             </div>
           </div>
 
+          {/* Missing Required Fields Warning */}
+          {importResult.missingRequiredFields && importResult.missingRequiredFields.totalIncomplete > 0 && (
+            <div className="card mb-3" style={{ borderColor: '#f56565' }}>
+              <div className="card-header" style={{ backgroundColor: '#fed7d7' }}>
+                <h4 className="mb-0 text-danger">⚠️ Missing Required Fields</h4>
+                <p className="mb-0 text-sm">Some transactions are missing job numbers and/or cost codes and must be edited before use.</p>
+              </div>
+              <div className="p-3">
+                <div className="grid grid-4 mb-3">
+                  <div className="text-center">
+                    <div className="text-xl text-success">{importResult.missingRequiredFields.complete}</div>
+                    <div className="text-sm text-gray">Complete</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xl text-warning">{importResult.missingRequiredFields.missingJobNumber}</div>
+                    <div className="text-sm text-gray">Missing Job #</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xl text-warning">{importResult.missingRequiredFields.missingCostCode}</div>
+                    <div className="text-sm text-gray">Missing Cost Code</div>
+                  </div>
+                  <div className="text-center">
+                    <div className="text-xl text-danger">{importResult.missingRequiredFields.missingBoth}</div>
+                    <div className="text-sm text-gray">Missing Both</div>
+                  </div>
+                </div>
+                <div className="alert" style={{ backgroundColor: '#fef5e7', border: '1px solid #ed8936', padding: '12px', borderRadius: '4px' }}>
+                  <strong>Action Required:</strong> Go to the <strong>Transactions</strong> page and edit transactions marked with "Required" to add missing job numbers and cost codes.
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* User Matching Results */}
           {importResult.userMatching && (
             <div className="mb-3">
@@ -241,6 +274,18 @@ const ImportTransactions = () => {
                 <td><span className="badge badge-info">Optional</span></td>
                 <td>Transaction category</td>
                 <td>Food & Drink</td>
+              </tr>
+              <tr>
+                <td><code>Job Number</code></td>
+                <td><span className="badge badge-danger">Required</span></td>
+                <td>Project or job identifier</td>
+                <td>J2024-001</td>
+              </tr>
+              <tr>
+                <td><code>Cost Code</code></td>
+                <td><span className="badge badge-danger">Required</span></td>
+                <td>Cost center or department code</td>
+                <td>CC-ADMIN</td>
               </tr>
               <tr>
                 <td><code>First Name</code></td>

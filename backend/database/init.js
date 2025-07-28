@@ -178,6 +178,8 @@ const initDatabase = () => {
       amount DECIMAL(10,2) NOT NULL,
       card_last_four TEXT,
       category TEXT,
+      job_number TEXT,
+      cost_code TEXT,
       chase_transaction_id TEXT,
       external_transaction_id TEXT,
       sales_tax DECIMAL(10,2),
@@ -222,6 +224,18 @@ const initDatabase = () => {
       db.run(`ALTER TABLE transactions ADD COLUMN updated_by INTEGER`, (err) => {
         if (err && !err.message.includes('duplicate column name')) {
           console.error('Error adding updated_by column:', err.message);
+        }
+      });
+
+      db.run(`ALTER TABLE transactions ADD COLUMN job_number TEXT`, (err) => {
+        if (err && !err.message.includes('duplicate column name')) {
+          console.error('Error adding job_number column:', err.message);
+        }
+      });
+
+      db.run(`ALTER TABLE transactions ADD COLUMN cost_code TEXT`, (err) => {
+        if (err && !err.message.includes('duplicate column name')) {
+          console.error('Error adding cost_code column:', err.message);
         }
       });
     }

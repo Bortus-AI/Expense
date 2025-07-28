@@ -24,6 +24,11 @@ const Transactions = () => {
     sortOrder: 'DESC'
   });
   const [showFilters, setShowFilters] = useState(false);
+  
+  // Editing state
+  const [editingTransaction, setEditingTransaction] = useState(null);
+  const [editFormData, setEditFormData] = useState({});
+  const [savingTransaction, setSavingTransaction] = useState(null);
 
   useEffect(() => {
     loadTransactions(currentPage);
@@ -135,6 +140,65 @@ const Transactions = () => {
         console.error('Error deleting transaction:', error);
         toast.error('Error deleting transaction');
       }
+    }
+  };
+
+  // Editing functions
+  const handleEditStart = (transaction) => {
+    setEditingTransaction(transaction.id);
+    setEditFormData({
+      description: transaction.description || '',
+      category: transaction.category || '',
+      amount: transaction.amount || '',
+      job_number: transaction.job_number || '',
+      cost_code: transaction.cost_code || ''
+    });
+  };
+
+  const handleEditCancel = () => {
+    setEditingTransaction(null);
+    setEditFormData({});
+  };
+
+  const handleEditChange = (field, value) => {
+    setEditFormData(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const handleEditSave = async (transactionId) => {
+    // Validation
+    if (!editFormData.description || !editFormData.category || !editFormData.job_number || !editFormData.cost_code) {
+      toast.error('Description, category, job number, and cost code are required');
+      return;
+    }
+
+    if (!editFormData.amount || isNaN(parseFloat(editFormData.amount))) {
+      toast.error('Please enter a valid amount');
+      return;
+    }
+
+    setSavingTransaction(transactionId);
+    
+    try {
+      await transactionAPI.update(transactionId, {
+        description: editFormData.description,
+        category: editFormData.category,
+        amount: parseFloat(editFormData.amount),
+        job_number: editFormData.job_number,
+        cost_code: editFormData.cost_code
+      });
+      
+      toast.success('Transaction updated successfully');
+      setEditingTransaction(null);
+      setEditFormData({});
+      loadTransactions(currentPage);
+    } catch (error) {
+      console.error('Error updating transaction:', error);
+      toast.error(error.response?.data?.error || 'Error updating transaction');
+    } finally {
+      setSavingTransaction(null);
     }
   };
 
@@ -323,9 +387,11 @@ const Transactions = () => {
                     <th>Date</th>
                     <th>Description</th>
                     <th>Category</th>
+                    <th>Job Number</th>
+                    <th>Cost Code</th>
+                    <th>Amount</th>
                     <th>Transaction ID</th>
                     <th>Sales Tax</th>
-                    <th>Amount</th>
                     <th>Receipt Status</th>
                     <th>Receipts</th>
                     {user?.currentRole === 'admin' && <th>Created By</th>}
@@ -338,16 +404,108 @@ const Transactions = () => {
                       <td>
                         {formatDate(transaction.transaction_date)}
                       </td>
+                      
+                      {/* Description */}
                       <td>
-                        <div className="text-sm">
-                          {transaction.description}
-                        </div>
+                        {editingTransaction === transaction.id ? (
+                          <input
+                            type="text"
+                            className="form-input"
+                            value={editFormData.description}
+                            onChange={(e) => handleEditChange('description', e.target.value)}
+                            placeholder="Description"
+                          />
+                        ) : (
+                          <div className="text-sm">
+                            {transaction.description || <span className="text-danger">Missing description</span>}
+                          </div>
+                        )}
                       </td>
+                      
+                      {/* Category */}
                       <td>
-                        <span className="badge badge-info">
-                          {transaction.category || 'Other'}
-                        </span>
+                        {editingTransaction === transaction.id ? (
+                          <select
+                            className="form-select"
+                            value={editFormData.category}
+                            onChange={(e) => handleEditChange('category', e.target.value)}
+                          >
+                            <option value="">Select Category</option>
+                            <option value="food">Food & Dining</option>
+                            <option value="transportation">Transportation</option>
+                            <option value="utilities">Utilities</option>
+                            <option value="entertainment">Entertainment</option>
+                            <option value="shopping">Shopping</option>
+                            <option value="healthcare">Healthcare</option>
+                            <option value="office">Office Supplies</option>
+                            <option value="travel">Travel</option>
+                            <option value="other">Other</option>
+                          </select>
+                        ) : (
+                          <span className={`badge ${transaction.category ? 'badge-info' : 'badge-warning'}`}>
+                            {transaction.category || 'Not set'}
+                          </span>
+                        )}
                       </td>
+                      
+                      {/* Job Number */}
+                      <td>
+                        {editingTransaction === transaction.id ? (
+                          <input
+                            type="text"
+                            className="form-input"
+                            value={editFormData.job_number}
+                            onChange={(e) => handleEditChange('job_number', e.target.value)}
+                            placeholder="Job Number"
+                          />
+                        ) : (
+                          <div className="text-sm">
+                            {transaction.job_number ? (
+                              <span className="badge badge-success">{transaction.job_number}</span>
+                            ) : (
+                              <span className="text-danger">Required</span>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                      
+                      {/* Cost Code */}
+                      <td>
+                        {editingTransaction === transaction.id ? (
+                          <input
+                            type="text"
+                            className="form-input"
+                            value={editFormData.cost_code}
+                            onChange={(e) => handleEditChange('cost_code', e.target.value)}
+                            placeholder="Cost Code"
+                          />
+                        ) : (
+                          <div className="text-sm">
+                            {transaction.cost_code ? (
+                              <span className="badge badge-success">{transaction.cost_code}</span>
+                            ) : (
+                              <span className="text-danger">Required</span>
+                            )}
+                          </div>
+                        )}
+                      </td>
+                      
+                      {/* Amount */}
+                      <td>
+                        {editingTransaction === transaction.id ? (
+                          <input
+                            type="number"
+                            step="0.01"
+                            className="form-input"
+                            value={editFormData.amount}
+                            onChange={(e) => handleEditChange('amount', e.target.value)}
+                            placeholder="0.00"
+                          />
+                        ) : (
+                          formatAmount(transaction.amount)
+                        )}
+                      </td>
+                      
                       <td>
                         <div className="text-sm text-gray">
                           {transaction.external_transaction_id || 'N/A'}
@@ -356,7 +514,6 @@ const Transactions = () => {
                       <td>
                         {transaction.sales_tax ? formatAmount(transaction.sales_tax) : 'N/A'}
                       </td>
-                      <td>{formatAmount(transaction.amount)}</td>
                       <td>{getReceiptStatus(transaction.receipt_count)}</td>
                       <td>
                         {transaction.receipts ? (
@@ -383,12 +540,43 @@ const Transactions = () => {
                         </td>
                       )}
                       <td>
-                        <button
-                          className="btn btn-sm btn-danger"
-                          onClick={() => handleDelete(transaction.id, transaction.description)}
-                        >
-                          Delete
-                        </button>
+                        {editingTransaction === transaction.id ? (
+                          <div className="flex gap-1">
+                            <button
+                              className="btn btn-sm btn-success"
+                              onClick={() => handleEditSave(transaction.id)}
+                              disabled={savingTransaction === transaction.id}
+                            >
+                              {savingTransaction === transaction.id ? (
+                                <div className="spinner"></div>
+                              ) : (
+                                'Save'
+                              )}
+                            </button>
+                            <button
+                              className="btn btn-sm btn-secondary"
+                              onClick={handleEditCancel}
+                              disabled={savingTransaction === transaction.id}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="flex gap-1">
+                            <button
+                              className="btn btn-sm btn-primary"
+                              onClick={() => handleEditStart(transaction)}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              className="btn btn-sm btn-danger"
+                              onClick={() => handleDelete(transaction.id, transaction.description)}
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        )}
                       </td>
                     </tr>
                   ))}

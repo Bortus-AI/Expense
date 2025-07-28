@@ -57,7 +57,8 @@ export const transactionAPI = {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
   },
-  delete: (id) => api.delete(`/transactions/${id}`)
+  delete: (id) => api.delete(`/transactions/${id}`),
+  update: (id, data) => api.put(`/transactions/${id}`, data)
 };
 
 // Receipt API with enhanced filtering

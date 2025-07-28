@@ -447,8 +447,8 @@ class PDFService {
     yPosition += 25;
 
     // Table Headers
-    const headers = ['Date', 'Description', 'Amount', 'Status'];
-    const columnWidths = [80, 280, 80, 60];
+    const headers = ['Date', 'Description', 'Amount', 'Job #', 'Cost Code', 'Status'];
+    const columnWidths = [70, 200, 70, 60, 70, 50];
     let xPosition = this.pageMargin;
 
     doc.fontSize(10)
@@ -484,13 +484,15 @@ class PDFService {
       xPosition = this.pageMargin;
       const rowData = [
         moment(transaction.transaction_date).format('MM/DD/YY'),
-        transaction.description.substring(0, 35) + (transaction.description.length > 35 ? '...' : ''),
+        transaction.description.substring(0, 25) + (transaction.description.length > 25 ? '...' : ''),
         `$${parseFloat(transaction.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
+        transaction.job_number || 'N/A',
+        transaction.cost_code || 'N/A',
         transaction.receipt_count > 0 ? 'Matched' : 'Unmatched'
       ];
 
       rowData.forEach((data, index) => {
-        const color = index === 3 ? (data === 'Matched' ? this.colors.accent : this.colors.danger) : this.colors.text;
+        const color = index === 5 ? (data === 'Matched' ? this.colors.accent : this.colors.danger) : this.colors.text;
         doc.fillColor(color)
            .text(data, xPosition, yPosition, { width: columnWidths[index] });
         xPosition += columnWidths[index] + 10;
