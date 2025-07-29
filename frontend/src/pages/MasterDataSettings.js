@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { masterDataAPI } from '../services/api';
 import { toast } from 'react-toastify';
 import { useAuth } from '../contexts/AuthContext';
@@ -35,15 +35,7 @@ const MasterDataSettings = () => {
     return displayNames[type] || type;
   };
 
-  useEffect(() => {
-    if (user?.currentRole !== 'admin') {
-      toast.error('Access denied. Admin privileges required.');
-      return;
-    }
-    fetchData(activeTab);
-  }, [activeTab, user]);
-
-  const fetchData = async (tab) => {
+  const fetchData = useCallback(async (tab) => {
     setLoading(true);
     try {
       let response;
@@ -63,7 +55,15 @@ const MasterDataSettings = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (user?.currentRole !== 'admin') {
+      toast.error('Access denied. Admin privileges required.');
+      return;
+    }
+    fetchData(activeTab);
+  }, [activeTab, user, fetchData]);
 
   const handleAddItem = async (type) => {
     if (!newItemName.trim()) {

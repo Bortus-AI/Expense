@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { matchAPI, transactionAPI, receiptAPI, analyticsAPI } from '../services/api';
 import { toast } from 'react-toastify';
@@ -10,37 +10,16 @@ const Dashboard = () => {
   const [recentTransactions, setRecentTransactions] = useState([]);
   const [recentReceipts, setRecentReceipts] = useState([]);
   const [pendingMatches, setPendingMatches] = useState([]);
-  const [analytics, setAnalytics] = useState({});
   const [userActivity, setUserActivity] = useState([]);
   const [financialSummary, setFinancialSummary] = useState({});
   const [processingMetrics, setProcessingMetrics] = useState({});
-  const [monthlyTrends, setMonthlyTrends] = useState([]);
   const [topCategories, setTopCategories] = useState([]);
   const [systemHealth, setSystemHealth] = useState({});
   const [missingFields, setMissingFields] = useState({});
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('overview');
-  const [refreshInterval, setRefreshInterval] = useState(null);
 
-  useEffect(() => {
-    loadDashboardData();
-    
-    // Set up auto-refresh for admin users (every 5 minutes)
-    if (user?.currentRole === 'admin') {
-      const interval = setInterval(() => {
-        loadDashboardData();
-      }, 5 * 60 * 1000); // 5 minutes
-      setRefreshInterval(interval);
-    }
-
-    return () => {
-      if (refreshInterval) {
-        clearInterval(refreshInterval);
-      }
-    };
-  }, [user?.currentRole]);
-
-  const loadDashboardData = async () => {
+  const loadDashboardData = useCallback(async () => {
     setLoading(true);
     try {
       // Load statistics
@@ -63,7 +42,6 @@ const Dashboard = () => {
       try {
         const analyticsResponse = await analyticsAPI.getDashboard();
         const analyticsData = analyticsResponse.data;
-        setAnalytics(analyticsData);
         setFinancialSummary(analyticsData.financial || {});
         setMissingFields(analyticsData.missingFields || {});
         
@@ -71,7 +49,6 @@ const Dashboard = () => {
         if (user?.currentRole === 'admin') {
           setUserActivity(analyticsData.activity || []);
           setProcessingMetrics(analyticsData.processing || {});
-          setMonthlyTrends(analyticsData.trends || []);
           setTopCategories(analyticsData.categories || []);
           
           // Calculate system health
@@ -88,11 +65,22 @@ const Dashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.currentRole]);
+
+  useEffect(() => {
+    loadDashboardData();
+    
+    // Set up auto-refresh for admin users (every 5 minutes)
+    if (user?.currentRole === 'admin') {
+      const interval = setInterval(() => {
+        loadDashboardData();
+      }, 5 * 60 * 1000); // 5 minutes
+      return () => clearInterval(interval);
+    }
+  }, [user?.currentRole, loadDashboardData]);
 
   const calculateSystemHealth = (analyticsData) => {
     const processing = analyticsData.processing || {};
-    const financial = analyticsData.financial || {};
     
     // Calculate health scores
     const processingRate = processing.processingRate || 0;

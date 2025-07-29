@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { receiptAPI, companyAPI, api } from '../services/api';
+import { receiptAPI, companyAPI } from '../services/api';
 import { toast } from 'react-toastify';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -27,33 +27,7 @@ const Receipts = () => {
   });
   const [showFilters, setShowFilters] = useState(false);
 
-  useEffect(() => {
-    loadReceipts(currentPage);
-    // Only load company users if user is admin and fully loaded
-    if (user?.currentRole === 'admin' && user?.currentCompany?.id) {
-      loadCompanyUsers();
-    }
-  }, [currentPage, filters, user?.currentRole, user?.currentCompany?.id]);
-
-  const loadCompanyUsers = async () => {
-    try {
-      console.log('Loading company users for receipts filtering...');
-      console.log('User role:', user?.currentRole);
-      console.log('Company ID:', user?.currentCompany?.id);
-      
-      const response = await companyAPI.getUsersForFilter();
-      console.log('Company users response for receipts:', response.data);
-      console.log('Users array for receipts:', response.data.users);
-      
-      setCompanyUsers(response.data.users || []);
-    } catch (error) {
-      console.error('Error loading company users for receipts:', error);
-      console.error('Error response:', error.response?.data);
-      console.error('Error status:', error.response?.status);
-    }
-  };
-
-  const loadReceipts = async (page = 1) => {
+  const loadReceipts = useCallback(async (page = 1) => {
     setLoading(true);
     try {
       // Only include non-empty filters
@@ -70,7 +44,33 @@ const Receipts = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters]);
+
+  const loadCompanyUsers = useCallback(async () => {
+    try {
+      console.log('Loading company users for receipts filtering...');
+      console.log('User role:', user?.currentRole);
+      console.log('Company ID:', user?.currentCompany?.id);
+      
+      const response = await companyAPI.getUsersForFilter();
+      console.log('Company users response for receipts:', response.data);
+      console.log('Users array for receipts:', response.data.users);
+      
+      setCompanyUsers(response.data.users || []);
+    } catch (error) {
+      console.error('Error loading company users for receipts:', error);
+      console.error('Error response:', error.response?.data);
+      console.error('Error status:', error.response?.status);
+    }
+  }, [user?.currentRole, user?.currentCompany?.id]);
+
+  useEffect(() => {
+    loadReceipts(currentPage);
+    // Only load company users if user is admin and fully loaded
+    if (user?.currentRole === 'admin' && user?.currentCompany?.id) {
+      loadCompanyUsers();
+    }
+  }, [currentPage, user?.currentRole, user?.currentCompany?.id, loadReceipts, loadCompanyUsers]);
 
   const handleFilterChange = (key, value) => {
     setFilters(prev => ({
@@ -109,7 +109,7 @@ const Receipts = () => {
     } finally {
       setUploading(false);
     }
-  }, [currentPage]);
+  }, [currentPage, loadReceipts]);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,

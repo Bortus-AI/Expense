@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { transactionAPI, companyAPI, masterDataAPI } from '../services/api';
 import { toast } from 'react-toastify';
 import { useAuth } from '../contexts/AuthContext';
@@ -36,19 +36,7 @@ const Transactions = () => {
   const [editFormData, setEditFormData] = useState({});
   const [savingTransaction, setSavingTransaction] = useState(null);
 
-  useEffect(() => {
-    loadTransactions(currentPage);
-    // Load master data for all users (needed for editing transactions)
-    if (user?.currentCompany?.id) {
-      loadMasterData();
-      // Only load company users if user is admin
-      if (user?.currentRole === 'admin') {
-        loadCompanyUsers();
-      }
-    }
-  }, [currentPage, filters, user?.currentRole, user?.currentCompany?.id]);
-
-  const loadMasterData = async () => {
+  const loadMasterData = useCallback(async () => {
     try {
       const [categoriesRes, jobNumbersRes, costCodesRes] = await Promise.all([
         masterDataAPI.getCategories(),
@@ -63,9 +51,9 @@ const Transactions = () => {
       console.error('Error loading master data:', error);
       toast.error('Failed to load master data for dropdowns.');
     }
-  };
+  }, []);
 
-  const loadCompanyUsers = async () => {
+  const loadCompanyUsers = useCallback(async () => {
     try {
       console.log('Loading company users for filtering...');
       console.log('User role:', user?.currentRole);
@@ -81,9 +69,9 @@ const Transactions = () => {
       console.error('Error response:', error.response?.data);
       console.error('Error status:', error.response?.status);
     }
-  };
+  }, [user?.currentRole, user?.currentCompany?.id]);
 
-  const loadTransactions = async (page = 1) => {
+  const loadTransactions = useCallback(async (page = 1) => {
     setLoading(true);
     try {
       // Only include non-empty filters
@@ -100,7 +88,19 @@ const Transactions = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters]);
+
+  useEffect(() => {
+    loadTransactions(currentPage);
+    // Load master data for all users (needed for editing transactions)
+    if (user?.currentCompany?.id) {
+      loadMasterData();
+      // Only load company users if user is admin
+      if (user?.currentRole === 'admin') {
+        loadCompanyUsers();
+      }
+    }
+  }, [currentPage, user?.currentRole, user?.currentCompany?.id, loadTransactions, loadMasterData, loadCompanyUsers]);
 
   const handleFilterChange = (key, value) => {
     setFilters(prev => ({

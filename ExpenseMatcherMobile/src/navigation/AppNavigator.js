@@ -1,5 +1,5 @@
 import React from 'react';
-import { Text } from 'react-native';
+import { Text, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createStackNavigator } from '@react-navigation/stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -23,6 +23,44 @@ import LoadingScreen from '../screens/LoadingScreen';
 const Stack = createStackNavigator();
 const Tab = createBottomTabNavigator();
 
+const styles = StyleSheet.create({
+  tabBarIcon: {
+    fontSize: 24,
+  },
+});
+
+const renderTabBarIcon = (routeName, focused, size) => {
+  let iconName;
+
+  switch (routeName) {
+    case 'Dashboard':
+      iconName = focused ? '📊' : '📈';
+      break;
+    case 'Transactions':
+      iconName = focused ? '💳' : '💰';
+      break;
+    case 'Camera':
+      iconName = '📷';
+      break;
+    case 'Receipts':
+      iconName = focused ? '🧾' : '📄';
+      break;
+    case 'Matches':
+      iconName = focused ? '🔗' : '🔍';
+      break;
+    default:
+      iconName = '❓';
+  }
+
+  const iconStyle = {
+    fontSize: size,
+    color: focused ? '#667eea' : '#8e8e93',
+  };
+
+  return <Text style={[styles.tabBarIcon, iconStyle]}>{iconName}</Text>;
+};
+
+
 const AuthNavigator = () => {
   return (
     <Stack.Navigator
@@ -42,35 +80,7 @@ const MainTabNavigator = () => {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
-        tabBarIcon: ({ focused, color, size }) => {
-          let iconName;
-          
-          switch (route.name) {
-            case 'Dashboard':
-              iconName = focused ? '📊' : '📈';
-              break;
-            case 'Transactions':
-              iconName = focused ? '💳' : '💰';
-              break;
-            case 'Camera':
-              iconName = '📷';
-              break;
-            case 'Receipts':
-              iconName = focused ? '🧾' : '📄';
-              break;
-            case 'Matches':
-              iconName = focused ? '🔗' : '🔍';
-              break;
-            default:
-              iconName = '❓';
-          }
-          
-          return (
-            <Text style={{ fontSize: size, color: focused ? '#667eea' : '#8e8e93' }}>
-              {iconName}
-            </Text>
-          );
-        },
+        tabBarIcon: ({ focused, size }) => renderTabBarIcon(route.name, focused, size),
         tabBarActiveTintColor: '#667eea',
         tabBarInactiveTintColor: '#8e8e93',
         tabBarStyle: {

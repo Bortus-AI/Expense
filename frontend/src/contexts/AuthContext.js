@@ -76,7 +76,7 @@ export const AuthProvider = ({ children }) => {
   }, [accessToken]);
 
   // Refresh access token
-  const refreshAccessToken = async () => {
+  const refreshAccessToken = useCallback(async () => {
     try {
       if (!refreshToken || isTokenExpired(refreshToken)) {
         logout();
@@ -97,7 +97,7 @@ export const AuthProvider = ({ children }) => {
       logout();
       return null;
     }
-  };
+  }, [refreshToken, logout]);
 
   // Axios response interceptor for automatic token refresh
   useEffect(() => {
@@ -130,10 +130,10 @@ export const AuthProvider = ({ children }) => {
     return () => {
       axios.interceptors.response.eject(responseInterceptor);
     };
-  }, [refreshToken]);
+  }, [refreshToken, refreshAccessToken]);
 
   // Load user data from token
-  const loadUserFromToken = async () => {
+  const loadUserFromToken = useCallback(async () => {
     if (!accessToken) {
       console.log('No access token found, skipping user data load');
       setLoading(false);
@@ -222,7 +222,7 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [accessToken, refreshAccessToken]);
 
   // Initialize auth state
   useEffect(() => {
@@ -233,7 +233,7 @@ export const AuthProvider = ({ children }) => {
     } else if (!accessToken) {
       setLoading(false);
     }
-  }, [accessToken, user]);
+  }, [accessToken, user, loadUserFromToken]);
 
   // Login function
   const login = async (email, password) => {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -20,13 +20,8 @@ const DashboardScreen = ({ navigation }) => {
     matchRate: 0,
   });
   const [refreshing, setRefreshing] = useState(false);
-  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadDashboardData();
-  }, []);
-
-  const loadDashboardData = async () => {
+  const loadDashboardData = useCallback(async () => {
     try {
       const [transactionsData, receiptsData, matchesData] = await Promise.all([
         getTransactions(1, 100),
@@ -50,9 +45,13 @@ const DashboardScreen = ({ navigation }) => {
     } catch (error) {
       console.error('Dashboard data error:', error);
     } finally {
-      setLoading(false);
+      // setLoading(false); // This was causing a warning, and the state is not used
     }
-  };
+  }, [getTransactions, getReceipts, getMatches]);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, [loadDashboardData]);
 
   const onRefresh = async () => {
     setRefreshing(true);
