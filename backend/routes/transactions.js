@@ -366,7 +366,7 @@ router.post('/import', csvUpload.single('csvFile'), (req, res) => {
       const costCodeName = row['Cost Code'] || row['CostCode'] || row['cost_code'] || row['Code'] || '';
 
       // Create a unique identifier from the transaction data
-      const chaseTransactionId = `${transactionDate}_${description}_${Math.abs(amount)}`.replace(/[^a-zA-Z0-9]/g, '_');
+      const chaseTransactionId = `${transactionDate}_${description || 'NO_DESCRIPTION'}_${Math.abs(amount)}`.replace(/[^a-zA-Z0-9]/g, '_');
 
       transactions.push({
         transaction_date: transactionDate,
@@ -438,7 +438,7 @@ router.post('/import', csvUpload.single('csvFile'), (req, res) => {
         // Track assignment details
         userMatchResults.details.push({
           row: i + 1,
-          description: transaction.description.substring(0, 50),
+          description: (transaction.description || '').substring(0, 50),
           providedName: transaction.first_name && transaction.last_name ? 
             `${transaction.first_name} ${transaction.last_name}` : 'None',
           assignedTo: assignedUserInfo,

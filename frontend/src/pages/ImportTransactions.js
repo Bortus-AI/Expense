@@ -244,13 +244,13 @@ const ImportTransactions = () => {
               </tr>
               <tr>
                 <td><code>Job Number</code></td>
-                <td><span className="badge badge-danger">Required</span></td>
+                <td><span className="badge badge-info">Optional</span></td>
                 <td>Project or job identifier</td>
                 <td>J2024-001</td>
               </tr>
               <tr>
                 <td><code>Cost Code</code></td>
-                <td><span className="badge badge-danger">Required</span></td>
+                <td><span className="badge badge-info">Optional</span></td>
                 <td>Cost center or department code</td>
                 <td>CC-ADMIN</td>
               </tr>
