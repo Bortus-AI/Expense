@@ -169,21 +169,24 @@ const Navbar = () => {
                   >
                     👤 Profile Settings
                   </Link>
-                  <Link 
-                    to="/company-settings" 
-                    className="dropdown-item"
-                    onClick={() => setShowUserMenu(false)}
-                  >
-                    🏢 Company Settings
-                  </Link>
                   {user?.currentRole === 'admin' && (
-                    <Link 
-                      to="/master-data-settings" 
-                      className="dropdown-item"
-                      onClick={() => setShowUserMenu(false)}
-                    >
-                      🗄️ Master Data Settings
-                    </Link>
+                    <>
+                      <li className="nav-item">
+                        <Link className="nav-link" to="/company-settings">
+                          🏢 Company Settings
+                        </Link>
+                      </li>
+                      <li className="nav-item">
+                        <Link className="nav-link" to="/master-data-settings">
+                          📊 Master Data
+                        </Link>
+                      </li>
+                      <li className="nav-item">
+                        <Link className="nav-link" to="/settings">
+                          ⚙️ Settings
+                        </Link>
+                      </li>
+                    </>
                   )}
                   <hr />
                   <button className="dropdown-item logout" onClick={handleLogout}>

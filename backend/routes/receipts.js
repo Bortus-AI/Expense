@@ -224,7 +224,7 @@ const upload = multer({
 });
 
 // Process receipt with OCR and LLM enhancement
-async function processReceipt(filePath, originalFilename) {
+async function processReceipt(filePath, originalFilename, companyId) {
   try {
     const fileExtension = path.extname(originalFilename).toLowerCase();
     let ocrText = '';
@@ -261,11 +261,12 @@ async function processReceipt(filePath, originalFilename) {
       console.log('OCR Text length:', ocrText.length);
       console.log('Sample OCR text:', ocrText.substring(0, 200) + '...');
       
+      // Process OCR with LLM enhancement
       const llmResult = await llmService.processOCRText(ocrText, {
         filename: originalFilename,
         fileSize: fs.statSync(filePath).size,
-        fileType: fileExtension
-      });
+        uploadDate: new Date().toISOString()
+      }, companyId);
 
       console.log('LLM Result:', llmResult);
 
@@ -546,7 +547,7 @@ router.post('/upload', upload.single('receipt'), async (req, res) => {
 
     // Process OCR in background
     try {
-      const ocrResult = await processReceipt(req.file.path, req.file.originalname);
+      const ocrResult = await processReceipt(req.file.path, req.file.originalname, req.companyId);
       
       // Update receipt with OCR results
       const breakdown = ocrResult.extractedData || {};
@@ -996,4 +997,4 @@ router.post('/trigger-auto-match-all', (req, res) => {
   });
 });
 
-module.exports = router; 
+module.exports = router;

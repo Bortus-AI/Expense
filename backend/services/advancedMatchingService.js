@@ -694,14 +694,10 @@ class AdvancedMatchingService {
   async getRecurringPatterns(companyId, isActive = true) {
     return new Promise((resolve, reject) => {
       db.all(`
-        SELECT rp.*, c.name as category_name,
-               COUNT(rm.id) as match_count,
-               MAX(rm.created_at) as last_match
+        SELECT rp.*, c.name as category_name
         FROM recurring_patterns rp
         LEFT JOIN categories c ON rp.category_id = c.id
-        LEFT JOIN recurring_matches rm ON rp.id = rm.pattern_id
         WHERE rp.company_id = ? AND rp.is_active = ?
-        GROUP BY rp.id
         ORDER BY rp.occurrence_count DESC, rp.updated_at DESC
       `, [companyId, isActive ? 1 : 0], (err, rows) => {
         if (err) reject(err);

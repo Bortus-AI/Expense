@@ -228,7 +228,7 @@ export const aiAPI = {
   detectRecurringPatterns: (transactionId) => 
     api.post(`/ai/recurring/detect/${transactionId}`),
   getRecurringPatterns: () => 
-    api.get('/ai/recurring/patterns'),
+    api.get('/ai/matching/recurring/patterns'),
   
   // Calendar Correlation
   analyzeCalendarCorrelation: (transactionId) => 
@@ -290,6 +290,27 @@ export const masterDataAPI = {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
   },
+};
+
+// Settings API
+export const settingsAPI = {
+  // Get all settings
+  getAllSettings: () => api.get('/settings'),
+  
+  // Get specific setting
+  getSetting: (key) => api.get(`/settings/${key}`),
+  
+  // Update setting
+  updateSetting: (key, value, description) => api.put(`/settings/${key}`, { value, description }),
+  
+  // Get LLM model
+  getLLMModel: () => api.get('/settings/llm/model'),
+  
+  // Set LLM model
+  setLLMModel: (model) => api.put('/settings/llm/model', { model }),
+  
+  // Test LLM connection
+  testLLMConnection: () => api.post('/settings/llm/test')
 };
 
 // Export both as named export and default export

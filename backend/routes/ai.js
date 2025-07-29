@@ -612,7 +612,7 @@ router.post('/llm/test-categorization', async (req, res) => {
     };
 
     const companyContext = await intelligentCategorizationService.getCompanyContext(companyId);
-    const result = await llmService.categorizeTransaction(transaction, companyContext);
+    const result = await llmService.categorizeTransaction(transaction, companyContext, req.user.currentCompany?.id);
     
     res.json({
       success: true,
@@ -640,7 +640,7 @@ router.post('/llm/test-ocr', async (req, res) => {
       });
     }
 
-    const result = await llmService.processOCRText(ocrText, receiptData || {});
+    const result = await llmService.processOCRText(ocrText, receiptData || {}, req.user.currentCompany?.id);
     
     res.json({
       success: true,

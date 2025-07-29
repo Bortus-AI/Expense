@@ -1,11 +1,16 @@
 const axios = require('axios');
+const settingsService = require('./settingsService');
 
 class LLMService {
   constructor() {
     this.ollamaUrl = process.env.OLLAMA_URL || 'http://localhost:11434';
-    this.model = process.env.OLLAMA_MODEL || 'llama3.1:8b';
     this.maxTokens = 2048;
     this.temperature = 0.1; // Low temperature for consistent results
+  }
+
+  // Get the current model from settings
+  async getModel(companyId = null) {
+    return await settingsService.getLLMModel(companyId);
   }
 
   // Test connection to Ollama
@@ -22,10 +27,11 @@ class LLMService {
   }
 
   // Generate response from Ollama
-  async generateResponse(prompt, systemPrompt = null) {
+  async generateResponse(prompt, systemPrompt = null, companyId = null) {
     try {
+      const model = await this.getModel(companyId);
       const requestBody = {
-        model: this.model,
+        model: model,
         prompt: prompt,
         stream: false,
         options: {
@@ -49,7 +55,7 @@ class LLMService {
   }
 
   // Enhanced OCR text processing
-  async processOCRText(ocrText, receiptData = {}) {
+  async processOCRText(ocrText, receiptData = {}, companyId = null) {
     const systemPrompt = `You are an expert at processing receipt and invoice text. Your task is to extract and structure information from OCR text. Always respond in valid JSON format. Be very careful to extract the correct total amount and merchant name. NEVER return generic terms like "name" or "merchant" - always extract the actual business name.`;
 
     const prompt = `
@@ -83,7 +89,7 @@ IMPORTANT:
 Be precise and accurate.`;
 
     try {
-      const response = await this.generateResponse(prompt, systemPrompt);
+      const response = await this.generateResponse(prompt, systemPrompt, companyId);
       
       // Try to parse JSON response
       try {
@@ -125,7 +131,7 @@ Be precise and accurate.`;
   }
 
   // Enhanced transaction categorization
-  async categorizeTransaction(transaction, companyContext = {}) {
+  async categorizeTransaction(transaction, companyContext = {}, companyId = null) {
     const systemPrompt = `You are an expert at categorizing business transactions. Analyze the transaction and provide the best category with confidence score.`;
 
     const prompt = `
@@ -160,7 +166,7 @@ Respond with ONLY a JSON object:
 }`;
 
     try {
-      const response = await this.generateResponse(prompt, systemPrompt);
+      const response = await this.generateResponse(prompt, systemPrompt, companyId);
       
       try {
         const parsed = JSON.parse(response);
@@ -198,7 +204,7 @@ Respond with ONLY a JSON object:
 
 
   // Enhanced duplicate detection
-  async detectDuplicates(transaction, similarTransactions = []) {
+  async detectDuplicates(transaction, similarTransactions = [], companyId = null) {
     const systemPrompt = `You are an expert at detecting duplicate transactions. Analyze if this transaction is a duplicate of existing ones.`;
 
     const prompt = `
@@ -222,7 +228,7 @@ Determine if this is a duplicate and respond with ONLY a JSON object:
 }`;
 
     try {
-      const response = await this.generateResponse(prompt, systemPrompt);
+      const response = await this.generateResponse(prompt, systemPrompt, companyId);
       
       try {
         const parsed = JSON.parse(response);

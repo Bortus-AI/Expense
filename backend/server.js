@@ -19,6 +19,7 @@ const exportRoutes = require('./routes/exports');
 const analyticsRoutes = require('./routes/analytics');
 const masterDataRoutes = require('./routes/masterdata');
 const aiRoutes = require('./routes/ai');
+const settingsRoutes = require('./routes/settings');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -95,6 +96,7 @@ app.use('/api/exports', exportRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/masterdata', masterDataRoutes);
 app.use('/api/ai', aiRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // Health check route
 app.get('/api/health', (req, res) => {

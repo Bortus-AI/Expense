@@ -137,7 +137,7 @@ class IntelligentCategorizationService {
       // 0. LLM-powered categorization (highest priority)
       try {
         const companyContext = await this.getCompanyContext(companyId);
-        const llmResult = await llmService.categorizeTransaction(transaction, companyContext);
+        const llmResult = await llmService.categorizeTransaction(transaction, companyContext, companyId);
         
         if (llmResult.success && llmResult.categorization.confidence > 0.7) {
           const categoryId = await this.getOrCreateCategory(companyId, llmResult.categorization.category);
@@ -642,17 +642,28 @@ class IntelligentCategorizationService {
   // Update or create categorization pattern
   async updateCategorizationPattern(companyId, patternType, patternValue, categoryId, confidenceScore) {
     return new Promise((resolve, reject) => {
-      db.run(`
-        INSERT OR REPLACE INTO categorization_patterns 
-        (company_id, pattern_type, pattern_value, category_id, confidence_score, usage_count, last_used, updated_at)
-        VALUES (?, ?, ?, ?, ?, 
-          COALESCE((SELECT usage_count + 1 FROM categorization_patterns 
-                   WHERE company_id = ? AND pattern_type = ? AND pattern_value = ?), 1),
-          CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-      `, [companyId, patternType, patternValue, categoryId, confidenceScore, companyId, patternType, patternValue], 
-      function(err) {
-        if (err) reject(err);
-        else resolve(this.lastID);
+      // First check if pattern exists
+      db.get(`
+        SELECT usage_count FROM categorization_patterns 
+        WHERE company_id = ? AND pattern_type = ? AND pattern_value = ?
+      `, [companyId, patternType, patternValue], (err, row) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+
+        const usageCount = row ? row.usage_count + 1 : 1;
+
+        // Insert or replace the pattern
+        db.run(`
+          INSERT OR REPLACE INTO categorization_patterns 
+          (company_id, pattern_type, pattern_value, category_id, confidence_score, usage_count, last_used, updated_at)
+          VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        `, [companyId, patternType, patternValue, categoryId, confidenceScore, usageCount], 
+        function(err) {
+          if (err) reject(err);
+          else resolve(this.lastID);
+        });
       });
     });
   }
@@ -752,14 +763,31 @@ class IntelligentCategorizationService {
   // Update prediction feedback
   async updatePredictionFeedback(transactionId, predictionType, actualValue, isCorrect) {
     return new Promise((resolve, reject) => {
-      db.run(`
-        UPDATE ml_predictions 
-        SET actual_value = ?, is_correct = ?, feedback_provided = 1
+      // First get the most recent prediction for this transaction
+      db.get(`
+        SELECT id FROM ml_predictions 
         WHERE transaction_id = ? AND prediction_type = ?
         ORDER BY created_at DESC LIMIT 1
-      `, [actualValue, isCorrect, transactionId, predictionType], function(err) {
-        if (err) reject(err);
-        else resolve(this.changes);
+      `, [transactionId, predictionType], (err, row) => {
+        if (err) {
+          reject(err);
+          return;
+        }
+        
+        if (!row) {
+          resolve(0); // No prediction found to update
+          return;
+        }
+        
+        // Update the specific prediction
+        db.run(`
+          UPDATE ml_predictions 
+          SET actual_value = ?, is_correct = ?, feedback_provided = 1
+          WHERE id = ?
+        `, [actualValue, isCorrect, row.id], function(err) {
+          if (err) reject(err);
+          else resolve(this.changes);
+        });
       });
     });
   }

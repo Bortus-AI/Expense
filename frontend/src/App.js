@@ -22,6 +22,7 @@ import Exports from './pages/Exports';
 import ImportTransactions from './pages/ImportTransactions';
 import CompanySettings from './pages/CompanySettings';
 import MasterDataSettings from './pages/MasterDataSettings';
+import Settings from './pages/Settings';
 import AIDashboard from './pages/AIDashboard';
 import LLMTest from './pages/LLMTest';
 
@@ -52,6 +53,7 @@ function App() {
                         <Route path="/profile" element={<Profile />} />
                         <Route path="/company-settings" element={<CompanySettings />} />
                         <Route path="/master-data-settings" element={<MasterDataSettings />} />
+                        <Route path="/settings" element={<Settings />} />
                         <Route path="/ai-dashboard" element={<AIDashboard />} />
                         <Route path="/llm-test" element={<LLMTest />} />
                       </Routes>

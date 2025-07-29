@@ -726,6 +726,38 @@ const initDatabase = () => {
     }
   });
 
+  // System settings table for admin configuration
+  db.run(`
+    CREATE TABLE IF NOT EXISTS system_settings (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      company_id INTEGER,
+      setting_key TEXT NOT NULL,
+      setting_value TEXT NOT NULL,
+      setting_type TEXT DEFAULT 'string', -- 'string', 'number', 'boolean', 'json'
+      description TEXT,
+      is_admin_only BOOLEAN DEFAULT FALSE,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (company_id) REFERENCES companies(id),
+      UNIQUE(company_id, setting_key)
+    )
+  `, (err) => {
+    if (err) {
+      console.error('Error creating system_settings table:', err.message);
+    } else {
+      // Insert default LLM model setting if it doesn't exist
+      db.run(`
+        INSERT OR IGNORE INTO system_settings 
+        (company_id, setting_key, setting_value, setting_type, description, is_admin_only)
+        VALUES (NULL, 'llm_model', 'llama3.1:8b', 'string', 'Default LLM model for AI features', TRUE)
+      `, (err) => {
+        if (err) {
+          console.error('Error inserting default LLM model setting:', err.message);
+        }
+      });
+    }
+  });
+
   console.log('Database tables created/verified (including ML/AI enhancement tables)');
   
   // Create default admin user if needed (run after a short delay to ensure tables are ready)
