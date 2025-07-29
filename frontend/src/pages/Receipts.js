@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
-import { receiptAPI, companyAPI } from '../services/api';
+import { receiptAPI, companyAPI, aiAPI } from '../services/api';
 import { toast } from 'react-toastify';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -175,39 +175,55 @@ const Receipts = () => {
 
   const openInNewTab = async (receipt) => {
     try {
-      // Fetch the file data with proper content type
-      const response = await receiptAPI.view(receipt.id);
-      
-      // Determine content type based on file extension
+      const response = await receiptAPI.view(receipt.id); // Fetch actual file data
       const ext = receipt.original_filename.toLowerCase().split('.').pop();
       let contentType = 'application/octet-stream';
-      
-      if (ext === 'pdf') {
-        contentType = 'application/pdf';
-      } else if (['jpg', 'jpeg'].includes(ext)) {
-        contentType = 'image/jpeg';
-      } else if (ext === 'png') {
-        contentType = 'image/png';
-      } else if (ext === 'gif') {
-        contentType = 'image/gif';
-      } else if (ext === 'webp') {
-        contentType = 'image/webp';
-      }
+      if (ext === 'pdf') { contentType = 'application/pdf'; }
+      else if (['jpg', 'jpeg'].includes(ext)) { contentType = 'image/jpeg'; }
+      else if (ext === 'png') { contentType = 'image/png'; }
+      else if (ext === 'gif') { contentType = 'image/gif'; }
+      else if (ext === 'webp') { contentType = 'image/webp'; }
 
-      // Create a new blob with the correct content type
       const blob = new Blob([response.data], { type: contentType });
       const url = URL.createObjectURL(blob);
-      
-      // Open in new tab
-      const newWindow = window.open(url, '_blank');
-      
-      // Clean up the URL after a delay
-      setTimeout(() => {
-        URL.revokeObjectURL(url);
-      }, 1000);
+      window.open(url, '_blank'); // Open in new tab
+      setTimeout(() => { URL.revokeObjectURL(url); }, 1000); // Clean up
     } catch (error) {
       console.error('Error opening receipt in new tab:', error);
       toast.error('Error opening receipt');
+    }
+  };
+
+  // AI Analysis Functions
+  const handleReceiptFraudAnalysis = async (receipt) => {
+    try {
+      const response = await aiAPI.analyzeReceiptForFraud(receipt.id);
+      const fraudResult = response.data.fraudAnalysis;
+      
+      if (fraudResult.requiresReview) {
+        toast.warning(`Fraud alert: ${fraudResult.alerts.length} suspicious indicators detected`);
+      } else {
+        toast.success('Receipt appears normal');
+      }
+    } catch (error) {
+      console.error('Error analyzing receipt fraud:', error);
+      toast.error('Error analyzing receipt fraud');
+    }
+  };
+
+  const handleReceiptDuplicateCheck = async (receipt) => {
+    try {
+      const response = await aiAPI.checkReceiptDuplicates(receipt.id);
+      const duplicateResult = response.data.duplicateAnalysis;
+      
+      if (duplicateResult.isDuplicate) {
+        toast.warning(`Duplicate detected: ${duplicateResult.duplicates.length} similar receipts found`);
+      } else {
+        toast.success('No duplicates found');
+      }
+    } catch (error) {
+      console.error('Error checking receipt duplicates:', error);
+      toast.error('Error checking receipt duplicates');
     }
   };
 
@@ -554,6 +570,20 @@ const Receipts = () => {
                           Download
                         </button>
                         <button
+                          className="btn btn-sm btn-warning"
+                          onClick={() => handleReceiptFraudAnalysis(receipt)}
+                          title="Fraud Check"
+                        >
+                          🚨
+                        </button>
+                        <button
+                          className="btn btn-sm btn-secondary"
+                          onClick={() => handleReceiptDuplicateCheck(receipt)}
+                          title="Duplicate Check"
+                        >
+                          🔍
+                        </button>
+                        <button
                           className="btn btn-sm btn-danger"
                           onClick={() => handleDelete(receipt.id)}
                         >
@@ -631,7 +661,7 @@ const Receipts = () => {
               {viewModal.viewUrl && (
                 <button 
                   className="btn btn-secondary"
-                  onClick={async () => {
+                  onClick={async (event) => {
                     const button = event.target;
                     const originalText = button.textContent;
                     button.textContent = 'Opening...';

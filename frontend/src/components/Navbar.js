@@ -88,6 +88,12 @@ const Navbar = () => {
           >
             📋 Export
           </Link>
+          <Link 
+            to="/ai-dashboard" 
+            className={`nav-link ${isActive('/ai-dashboard') ? 'active' : ''}`}
+          >
+            🤖 AI Dashboard
+          </Link>
         </div>
 
         <div className="navbar-user">

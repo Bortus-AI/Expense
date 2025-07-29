@@ -22,6 +22,7 @@ import Exports from './pages/Exports';
 import Profile from './pages/Profile';
 import CompanySettings from './pages/CompanySettings';
 import MasterDataSettings from './pages/MasterDataSettings';
+import AIDashboard from './pages/AIDashboard';
 
 function App() {
   return (
@@ -50,6 +51,7 @@ function App() {
                         <Route path="/profile" element={<Profile />} />
                         <Route path="/company-settings" element={<CompanySettings />} />
                         <Route path="/master-data-settings" element={<MasterDataSettings />} />
+                        <Route path="/ai-dashboard" element={<AIDashboard />} />
                       </Routes>
                     </main>
                   </div>
