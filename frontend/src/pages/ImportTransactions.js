@@ -66,6 +66,9 @@ const ImportTransactions = () => {
             <li>Click "Download transactions" and select CSV format</li>
             <li>Upload the downloaded CSV file here</li>
           </ol>
+          <div className="alert" style={{ backgroundColor: '#e6fffa', border: '1px solid #38b2ac', padding: '12px', borderRadius: '4px', marginTop: '12px' }}>
+            <strong>Note:</strong> Job numbers and cost codes are optional during import. You can add them later by editing individual transactions on the Transactions page.
+          </div>
         </div>
 
         <div 
@@ -110,39 +113,6 @@ const ImportTransactions = () => {
               <div className="text-sm text-gray">Total Processed</div>
             </div>
           </div>
-
-          {/* Missing Required Fields Warning */}
-          {importResult.missingRequiredFields && importResult.missingRequiredFields.totalIncomplete > 0 && (
-            <div className="card mb-3" style={{ borderColor: '#f56565' }}>
-              <div className="card-header" style={{ backgroundColor: '#fed7d7' }}>
-                <h4 className="mb-0 text-danger">⚠️ Missing Required Fields</h4>
-                <p className="mb-0 text-sm">Some transactions are missing job numbers and/or cost codes and must be edited before use.</p>
-              </div>
-              <div className="p-3">
-                <div className="grid grid-4 mb-3">
-                  <div className="text-center">
-                    <div className="text-xl text-success">{importResult.missingRequiredFields.complete}</div>
-                    <div className="text-sm text-gray">Complete</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xl text-warning">{importResult.missingRequiredFields.missingJobNumber}</div>
-                    <div className="text-sm text-gray">Missing Job #</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xl text-warning">{importResult.missingRequiredFields.missingCostCode}</div>
-                    <div className="text-sm text-gray">Missing Cost Code</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-xl text-danger">{importResult.missingRequiredFields.missingBoth}</div>
-                    <div className="text-sm text-gray">Missing Both</div>
-                  </div>
-                </div>
-                <div className="alert" style={{ backgroundColor: '#fef5e7', border: '1px solid #ed8936', padding: '12px', borderRadius: '4px' }}>
-                  <strong>Action Required:</strong> Go to the <strong>Transactions</strong> page and edit transactions marked with "Required" to add missing job numbers and cost codes.
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* User Matching Results */}
           {importResult.userMatching && (
@@ -208,24 +178,21 @@ const ImportTransactions = () => {
             </div>
           )}
 
-          <div className="flex gap-2 justify-center">
-            <button
-              onClick={() => navigate('/transactions')}
+          <div className="flex gap-2">
+            <button 
               className="btn btn-primary"
+              onClick={() => navigate('/transactions')}
             >
               View Transactions
             </button>
-            <button
-              onClick={() => navigate('/receipts')}
-              className="btn btn-success"
-            >
-              Upload Receipts
-            </button>
-            <button
-              onClick={() => setImportResult(null)}
+            <button 
               className="btn btn-secondary"
+              onClick={() => {
+                setImportResult(null);
+                window.location.reload();
+              }}
             >
-              Import More
+              Import Another File
             </button>
           </div>
         </div>

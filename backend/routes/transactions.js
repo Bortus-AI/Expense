@@ -391,19 +391,11 @@ router.post('/import', csvUpload.single('csvFile'), (req, res) => {
       
       // Process transactions with user matching
       const processedTransactions = [];
+      // Track user matching results
       const userMatchResults = {
         matched: 0,
         unmatched: 0,
         adminAssigned: 0,
-        details: []
-      };
-      
-      // Track transactions missing required fields
-      const missingFieldsResults = {
-        missingJobNumber: 0,
-        missingCostCode: 0,
-        missingBoth: 0,
-        complete: 0,
         details: []
       };
 
@@ -453,31 +445,6 @@ router.post('/import', csvUpload.single('csvFile'), (req, res) => {
           status: matchStatus
         });
 
-        // Track missing required fields
-        const missingJobNumber = !transaction.job_number;
-        const missingCostCode = !transaction.cost_code;
-        
-        if (missingJobNumber && missingCostCode) {
-          missingFieldsResults.missingBoth++;
-        } else if (missingJobNumber) {
-          missingFieldsResults.missingJobNumber++;
-        } else if (missingCostCode) {
-          missingFieldsResults.missingCostCode++;
-        } else {
-          missingFieldsResults.complete++;
-        }
-
-        if (missingJobNumber || missingCostCode) {
-          missingFieldsResults.details.push({
-            row: i + 1,
-            description: transaction.description.substring(0, 50),
-            missingFields: [
-              ...(missingJobNumber ? ['Job Number'] : []),
-              ...(missingCostCode ? ['Cost Code'] : [])
-            ]
-          });
-        }
-
         processedTransactions.push({
           ...transaction,
           assignedUserId,
@@ -491,13 +458,6 @@ router.post('/import', csvUpload.single('csvFile'), (req, res) => {
       console.log(`   • No match found: ${userMatchResults.unmatched}`);
       console.log(`   • Assigned to admin: ${userMatchResults.adminAssigned}`);
       console.log(`   • Total processed: ${transactions.length}\n`);
-
-      console.log(`📋 REQUIRED FIELDS SUMMARY:`);
-      console.log(`   • Complete transactions: ${missingFieldsResults.complete}`);
-      console.log(`   • Missing job number only: ${missingFieldsResults.missingJobNumber}`);
-      console.log(`   • Missing cost code only: ${missingFieldsResults.missingCostCode}`);
-      console.log(`   • Missing both fields: ${missingFieldsResults.missingBoth}`);
-      console.log(`   • Total incomplete: ${missingFieldsResults.missingJobNumber + missingFieldsResults.missingCostCode + missingFieldsResults.missingBoth}\n`);
 
       const insertPromises = processedTransactions.map(transaction => {
         return new Promise((resolve, reject) => {
@@ -553,14 +513,6 @@ router.post('/import', csvUpload.single('csvFile'), (req, res) => {
           unmatched: userMatchResults.unmatched,
           adminAssigned: userMatchResults.adminAssigned,
           details: userMatchResults.details.slice(0, 20) // Limit details to first 20 for response size
-        },
-        missingRequiredFields: {
-          complete: missingFieldsResults.complete,
-          missingJobNumber: missingFieldsResults.missingJobNumber,
-          missingCostCode: missingFieldsResults.missingCostCode,
-          missingBoth: missingFieldsResults.missingBoth,
-          totalIncomplete: missingFieldsResults.missingJobNumber + missingFieldsResults.missingCostCode + missingFieldsResults.missingBoth,
-          details: missingFieldsResults.details.slice(0, 20) // Limit details to first 20 for response size
         }
       });
     })
