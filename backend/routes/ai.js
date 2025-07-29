@@ -2,9 +2,10 @@ const express = require('express');
 const router = express.Router();
 const { authenticateToken, getUserCompanies } = require('../middleware/auth');
 const intelligentCategorizationService = require('../services/intelligentCategorizationService');
-const fraudDetectionService = require('../services/fraudDetectionService');
+
 const duplicateDetectionService = require('../services/duplicateDetectionService');
 const advancedMatchingService = require('../services/advancedMatchingService');
+const llmService = require('../services/llmService');
 const db = require('../database/init');
 
 // Apply middleware to all AI routes
@@ -83,126 +84,7 @@ router.get('/categorize/stats', async (req, res) => {
   }
 });
 
-// Fraud Detection Routes
 
-// Analyze transaction for fraud
-router.post('/fraud/analyze/transaction/:id', async (req, res) => {
-  try {
-    const transactionId = req.params.id;
-    const companyId = req.user.companyId || req.user.currentCompany?.id;
-
-    if (!companyId) {
-      return res.status(400).json({ error: 'Company ID not found in user session' });
-    }
-
-    // Get transaction details
-    const transaction = await new Promise((resolve, reject) => {
-      db.get('SELECT * FROM transactions WHERE id = ? AND company_id = ?', 
-        [transactionId, companyId], (err, row) => {
-          if (err) reject(err);
-          else resolve(row);
-        });
-    });
-
-    if (!transaction) {
-      return res.status(404).json({ error: 'Transaction not found' });
-    }
-
-    const result = await fraudDetectionService.analyzeTransaction(transaction, companyId);
-    
-    res.json({
-      success: true,
-      fraudAnalysis: result
-    });
-  } catch (error) {
-    console.error('Error in fraud analysis:', error);
-    res.status(500).json({ error: 'Failed to analyze fraud' });
-  }
-});
-
-// Analyze receipt for fraud
-router.post('/fraud/analyze/receipt/:id', async (req, res) => {
-  try {
-    const receiptId = req.params.id;
-    const companyId = req.user.companyId || req.user.currentCompany?.id;
-
-    if (!companyId) {
-      return res.status(400).json({ error: 'Company ID not found in user session' });
-    }
-
-    // Get receipt details
-    const receipt = await new Promise((resolve, reject) => {
-      db.get('SELECT * FROM receipts WHERE id = ? AND company_id = ?', 
-        [receiptId, companyId], (err, row) => {
-          if (err) reject(err);
-          else resolve(row);
-        });
-    });
-
-    if (!receipt) {
-      return res.status(404).json({ error: 'Receipt not found' });
-    }
-
-    const result = await fraudDetectionService.analyzeReceipt(receipt, companyId);
-    
-    res.json({
-      success: true,
-      fraudAnalysis: result
-    });
-  } catch (error) {
-    console.error('Error in receipt fraud analysis:', error);
-    res.status(500).json({ error: 'Failed to analyze receipt fraud' });
-  }
-});
-
-// Get fraud alerts
-router.get('/fraud/alerts', async (req, res) => {
-  try {
-    const companyId = req.user.companyId || req.user.currentCompany?.id;
-    const status = req.query.status || 'pending';
-    
-    const alerts = await fraudDetectionService.getFraudAlerts(companyId, status);
-    
-    res.json({
-      success: true,
-      alerts: alerts
-    });
-  } catch (error) {
-    console.error('Error getting fraud alerts:', error);
-    res.status(500).json({ error: 'Failed to get fraud alerts' });
-  }
-});
-
-// Update fraud alert status
-router.put('/fraud/alerts/:id', async (req, res) => {
-  try {
-    const alertId = req.params.id;
-    const { status } = req.body;
-    
-    await fraudDetectionService.updateFraudAlert(alertId, status);
-    
-    res.json({ success: true, message: 'Fraud alert updated successfully' });
-  } catch (error) {
-    console.error('Error updating fraud alert:', error);
-    res.status(500).json({ error: 'Failed to update fraud alert' });
-  }
-});
-
-// Get fraud statistics
-router.get('/fraud/stats', async (req, res) => {
-  try {
-    const companyId = req.user.companyId || req.user.currentCompany?.id;
-    const stats = await fraudDetectionService.getFraudStats(companyId);
-    
-    res.json({
-      success: true,
-      stats: stats
-    });
-  } catch (error) {
-    console.error('Error getting fraud stats:', error);
-    res.status(500).json({ error: 'Failed to get fraud statistics' });
-  }
-});
 
 // Duplicate Detection Routes
 
@@ -610,7 +492,6 @@ router.post('/analyze/comprehensive/:id', async (req, res) => {
     // Run all AI analyses in parallel with individual error handling
     const results = {
       categorization: null,
-      fraudAnalysis: null,
       duplicateAnalysis: null,
       recurringAnalysis: null,
       calendarAnalysis: null
@@ -625,14 +506,7 @@ router.post('/analyze/comprehensive/:id', async (req, res) => {
       results.categorization = { error: 'Categorization failed', details: error.message };
     }
 
-    try {
-      console.log('Running fraud analysis...');
-      results.fraudAnalysis = await fraudDetectionService.analyzeTransaction(transaction, companyId);
-      console.log('Fraud analysis completed successfully');
-    } catch (error) {
-      console.error('Error in fraud analysis:', error);
-      results.fraudAnalysis = { error: 'Fraud analysis failed', details: error.message };
-    }
+
 
     try {
       console.log('Running duplicate analysis...');
@@ -681,11 +555,9 @@ router.get('/dashboard/stats', async (req, res) => {
     // Get all statistics in parallel
     const [
       categorizationStats,
-      fraudStats,
       duplicateStats
     ] = await Promise.all([
       intelligentCategorizationService.getCategorizationStats(companyId),
-      fraudDetectionService.getFraudStats(companyId),
       duplicateDetectionService.getDuplicateStats(companyId)
     ]);
 
@@ -693,13 +565,94 @@ router.get('/dashboard/stats', async (req, res) => {
       success: true,
       dashboard: {
         categorization: categorizationStats,
-        fraud: fraudStats,
         duplicates: duplicateStats
       }
     });
   } catch (error) {
     console.error('Error getting AI dashboard stats:', error);
     res.status(500).json({ error: 'Failed to get dashboard statistics' });
+  }
+});
+
+// LLM Service Health Check
+router.get('/llm/health', async (req, res) => {
+  try {
+    const health = await llmService.healthCheck();
+    res.json({
+      success: true,
+      llm: health,
+      message: health.status === 'healthy' ? 'LLM service is healthy' : 'LLM service has issues'
+    });
+  } catch (error) {
+    console.error('LLM health check error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'LLM health check failed',
+      details: error.message
+    });
+  }
+});
+
+// Test LLM categorization
+router.post('/llm/test-categorization', async (req, res) => {
+  try {
+    const { description, amount, companyId } = req.body;
+    
+    if (!description) {
+      return res.status(400).json({
+        success: false,
+        error: 'Description is required'
+      });
+    }
+
+    const transaction = {
+      description,
+      amount: amount || 0,
+      transaction_date: new Date().toISOString().split('T')[0]
+    };
+
+    const companyContext = await intelligentCategorizationService.getCompanyContext(companyId);
+    const result = await llmService.categorizeTransaction(transaction, companyContext);
+    
+    res.json({
+      success: true,
+      result
+    });
+  } catch (error) {
+    console.error('LLM test categorization error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'LLM test categorization failed',
+      details: error.message
+    });
+  }
+});
+
+// Test LLM OCR processing
+router.post('/llm/test-ocr', async (req, res) => {
+  try {
+    const { ocrText, receiptData } = req.body;
+    
+    if (!ocrText) {
+      return res.status(400).json({
+        success: false,
+        error: 'OCR text is required'
+      });
+    }
+
+    const result = await llmService.processOCRText(ocrText, receiptData || {});
+    
+    res.json({
+      success: true,
+      result
+    });
+  } catch (error) {
+    console.error('LLM test OCR error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'LLM test OCR failed',
+      details: error.message
+    });
   }
 });
 

@@ -195,21 +195,7 @@ const Receipts = () => {
   };
 
   // AI Analysis Functions
-  const handleReceiptFraudAnalysis = async (receipt) => {
-    try {
-      const response = await aiAPI.analyzeReceiptForFraud(receipt.id);
-      const fraudResult = response.data.fraudAnalysis;
-      
-      if (fraudResult.requiresReview) {
-        toast.warning(`Fraud alert: ${fraudResult.alerts.length} suspicious indicators detected`);
-      } else {
-        toast.success('Receipt appears normal');
-      }
-    } catch (error) {
-      console.error('Error analyzing receipt fraud:', error);
-      toast.error('Error analyzing receipt fraud');
-    }
-  };
+
 
   const handleReceiptDuplicateCheck = async (receipt) => {
     try {
@@ -569,13 +555,7 @@ const Receipts = () => {
                         >
                           Download
                         </button>
-                        <button
-                          className="btn btn-sm btn-warning"
-                          onClick={() => handleReceiptFraudAnalysis(receipt)}
-                          title="Fraud Check"
-                        >
-                          🚨
-                        </button>
+                        
                         <button
                           className="btn btn-sm btn-secondary"
                           onClick={() => handleReceiptDuplicateCheck(receipt)}

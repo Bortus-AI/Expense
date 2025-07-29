@@ -536,30 +536,7 @@ const initDatabase = () => {
     }
   });
 
-  // Fraud detection alerts
-  db.run(`
-    CREATE TABLE IF NOT EXISTS fraud_alerts (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      company_id INTEGER NOT NULL,
-      transaction_id INTEGER,
-      receipt_id INTEGER,
-      alert_type TEXT NOT NULL, -- 'unusual_amount', 'suspicious_merchant', 'time_anomaly', 'location_anomaly'
-      risk_score DECIMAL(5,2) NOT NULL,
-      description TEXT,
-      status TEXT DEFAULT 'pending', -- pending, reviewed, dismissed, confirmed
-      reviewed_by INTEGER,
-      reviewed_at DATETIME,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (company_id) REFERENCES companies(id),
-      FOREIGN KEY (transaction_id) REFERENCES transactions(id),
-      FOREIGN KEY (receipt_id) REFERENCES receipts(id),
-      FOREIGN KEY (reviewed_by) REFERENCES users(id)
-    )
-  `, (err) => {
-    if (err) {
-      console.error('Error creating fraud_alerts table:', err.message);
-    }
-  });
+
 
   // Receipt validation results
   db.run(`

@@ -201,64 +201,56 @@ export const aiAPI = {
     api.post('/ai/categorize/feedback', data),
   getCategorizationStats: () => 
     api.get('/ai/categorize/stats'),
-
-  // Fraud Detection
-  analyzeTransactionForFraud: (transactionId) => 
-    api.post(`/ai/fraud/analyze/transaction/${transactionId}`),
-  analyzeReceiptForFraud: (receiptId) => 
-    api.post(`/ai/fraud/analyze/receipt/${receiptId}`),
-  getFraudAlerts: (status = 'pending') => 
-    api.get(`/ai/fraud/alerts?status=${status}`),
-  updateFraudAlert: (alertId, status) => 
-    api.put(`/ai/fraud/alerts/${alertId}`, { status }),
-  getFraudStats: () => 
-    api.get('/ai/fraud/stats'),
-
+  
+  
+  
   // Duplicate Detection
   checkTransactionDuplicates: (transactionId) => 
-    api.post(`/ai/duplicates/check/transaction/${transactionId}`),
-  checkReceiptDuplicates: (receiptId) => 
-    api.post(`/ai/duplicates/check/receipt/${receiptId}`),
-  getDuplicateGroups: (status = 'pending') => 
-    api.get(`/ai/duplicates/groups?status=${status}`),
-  getDuplicateGroupTransactions: (groupId) => 
-    api.get(`/ai/duplicates/groups/${groupId}/transactions`),
-  updateDuplicateGroup: (groupId, status) => 
-    api.put(`/ai/duplicates/groups/${groupId}`, { status }),
-  removeTransactionFromGroup: (groupId, transactionId) => 
-    api.delete(`/ai/duplicates/groups/${groupId}/transactions/${transactionId}`),
-  batchProcessDuplicates: (limit = 100) => 
-    api.post('/ai/duplicates/batch-process', { limit }),
-  getDuplicateStats: () => 
-    api.get('/ai/duplicates/stats'),
-
+    api.post(`/ai/duplicates/check/${transactionId}`),
+  getDuplicateGroups: () => 
+    api.get('/ai/duplicates/groups'),
+  updateDuplicateGroup: (groupId, data) => 
+    api.put(`/ai/duplicates/groups/${groupId}`, data),
+  
   // Advanced Matching
-  analyzeTransactionSplitting: (transactionId, receiptIds) => 
-    api.post(`/ai/matching/split/analyze/${transactionId}`, { receiptIds }),
-  createTransactionSplit: (transactionId, splits) => 
-    api.post(`/ai/matching/split/create/${transactionId}`, { splits }),
+  findAdvancedMatches: (transactionId) => 
+    api.post(`/ai/matching/advanced/${transactionId}`),
+  getMatchingStats: () => 
+    api.get('/ai/matching/stats'),
+  
+  // Transaction Splitting
+  createTransactionSplit: (transactionId, data) => 
+    api.post(`/ai/splitting/${transactionId}`, data),
   getTransactionSplits: (transactionId) => 
-    api.get(`/ai/matching/split/${transactionId}`),
-
+    api.get(`/ai/splitting/${transactionId}`),
+  
   // Recurring Patterns
-  analyzeRecurringPatterns: (transactionId) => 
-    api.post(`/ai/matching/recurring/analyze/${transactionId}`),
-  getRecurringPatterns: (active = true) => 
-    api.get(`/ai/matching/recurring/patterns?active=${active}`),
-
+  detectRecurringPatterns: (transactionId) => 
+    api.post(`/ai/recurring/detect/${transactionId}`),
+  getRecurringPatterns: () => 
+    api.get('/ai/recurring/patterns'),
+  
   // Calendar Correlation
   analyzeCalendarCorrelation: (transactionId) => 
-    api.post(`/ai/matching/calendar/analyze/${transactionId}`),
-  getCalendarCorrelations: (userId = null) => 
-    api.get(`/ai/matching/calendar/correlations${userId ? `?userId=${userId}` : ''}`),
-
+    api.post(`/ai/calendar/correlation/${transactionId}`),
+  getCalendarInsights: () => 
+    api.get('/ai/calendar/insights'),
+  
   // Comprehensive Analysis
   comprehensiveAnalysis: (transactionId) => 
     api.post(`/ai/analyze/comprehensive/${transactionId}`),
-
+  
   // Dashboard Statistics
   getDashboardStats: () => 
-    api.get('/ai/dashboard/stats')
+    api.get('/ai/dashboard/stats'),
+  
+  // LLM Service
+  llmHealth: () => 
+    api.get('/ai/llm/health'),
+  testLLMCategorization: (data) => 
+    api.post('/ai/llm/test-categorization', data),
+  testLLMOCR: (data) => 
+    api.post('/ai/llm/test-ocr', data)
 };
 
 // Master Data API

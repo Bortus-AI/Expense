@@ -1,5 +1,6 @@
 const db = require('../database/init');
 const moment = require('moment');
+const llmService = require('./llmService');
 
 class IntelligentCategorizationService {
   constructor() {
@@ -132,6 +133,26 @@ class IntelligentCategorizationService {
       const description = transaction.description || '';
       const amount = transaction.amount || 0;
       const normalizedDescription = description.toLowerCase();
+
+      // 0. LLM-powered categorization (highest priority)
+      try {
+        const companyContext = await this.getCompanyContext(companyId);
+        const llmResult = await llmService.categorizeTransaction(transaction, companyContext);
+        
+        if (llmResult.success && llmResult.categorization.confidence > 0.7) {
+          const categoryId = await this.getOrCreateCategory(companyId, llmResult.categorization.category);
+          
+          results.suggestedCategory = categoryId;
+          results.confidence = llmResult.categorization.confidence;
+          results.predictedCategory = llmResult.categorization.category;
+          results.predictedCategoryId = categoryId;
+          results.reasoning.push(`LLM categorization: ${llmResult.categorization.reasoning}`);
+          
+          return results;
+        }
+      } catch (llmError) {
+        console.log('LLM categorization failed, falling back to pattern matching:', llmError.message);
+      }
 
       // 1. Check for software/subscription patterns first
       const softwareMatch = await this.detectSoftwareSubscription(description);
@@ -760,6 +781,37 @@ class IntelligentCategorizationService {
         if (err) reject(err);
         else resolve(rows[0] || { total_predictions: 0, accuracy: 0, avg_confidence: 0, feedback_count: 0 });
       });
+    });
+  }
+
+  // Get company context for LLM
+  async getCompanyContext(companyId) {
+    return new Promise((resolve, reject) => {
+      db.get('SELECT name, domain, plan_type FROM companies WHERE id = ?', [companyId], (err, row) => {
+        if (err) reject(err);
+        else resolve(row || { name: 'Unknown Company', domain: '', plan_type: 'basic' });
+      });
+    });
+  }
+
+  // Get or create category by name
+  async getOrCreateCategory(companyId, categoryName) {
+    return new Promise((resolve, reject) => {
+      // First try to find existing category
+      db.get('SELECT id FROM categories WHERE company_id = ? AND name = ?', 
+        [companyId, categoryName], (err, row) => {
+          if (err) reject(err);
+          else if (row) {
+            resolve(row.id);
+          } else {
+            // Create new category
+            db.run('INSERT INTO categories (company_id, name) VALUES (?, ?)', 
+              [companyId, categoryName], function(err) {
+                if (err) reject(err);
+                else resolve(this.lastID);
+              });
+          }
+        });
     });
   }
 }

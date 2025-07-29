@@ -1,28 +1,29 @@
 import React from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from './contexts/AuthContext';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import './App.css';
 import './styles/auth.css';
 
-// Authentication
-import { AuthProvider } from './contexts/AuthContext';
-import ProtectedRoute from './components/ProtectedRoute';
-import ErrorBoundary from './components/ErrorBoundary';
-import Auth from './pages/Auth';
-
 // Components
+import ErrorBoundary from './components/ErrorBoundary';
+import ProtectedRoute from './components/ProtectedRoute';
 import Navbar from './components/Navbar';
+
+// Pages
+import Auth from './pages/Auth';
 import Dashboard from './pages/Dashboard';
 import Transactions from './pages/Transactions';
 import Receipts from './pages/Receipts';
 import Matches from './pages/Matches';
-import ImportTransactions from './pages/ImportTransactions';
-import Exports from './pages/Exports';
 import Profile from './pages/Profile';
+import Exports from './pages/Exports';
+import ImportTransactions from './pages/ImportTransactions';
 import CompanySettings from './pages/CompanySettings';
 import MasterDataSettings from './pages/MasterDataSettings';
 import AIDashboard from './pages/AIDashboard';
+import LLMTest from './pages/LLMTest';
 
 function App() {
   return (
@@ -52,6 +53,7 @@ function App() {
                         <Route path="/company-settings" element={<CompanySettings />} />
                         <Route path="/master-data-settings" element={<MasterDataSettings />} />
                         <Route path="/ai-dashboard" element={<AIDashboard />} />
+                        <Route path="/llm-test" element={<LLMTest />} />
                       </Routes>
                     </main>
                   </div>

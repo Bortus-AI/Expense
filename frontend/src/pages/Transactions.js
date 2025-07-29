@@ -345,21 +345,7 @@ const Transactions = () => {
     }
   };
 
-  const handleFraudAnalysis = async (transaction) => {
-    try {
-      const response = await aiAPI.analyzeTransactionForFraud(transaction.id);
-      const fraudResult = response.data.fraudAnalysis;
-      
-      if (fraudResult?.requiresReview) {
-        toast.warning(`Fraud alert: ${fraudResult.alerts?.length || 0} suspicious indicators detected`);
-      } else {
-        toast.success('Transaction appears normal');
-      }
-    } catch (error) {
-      console.error('Error analyzing fraud:', error);
-      toast.error('Error analyzing fraud');
-    }
-  };
+
 
   const handleDuplicateCheck = async (transaction) => {
     try {
@@ -766,13 +752,7 @@ const Transactions = () => {
                             >
                               🤖 AI
                             </button>
-                            <button
-                              className="btn btn-sm btn-warning"
-                              onClick={() => handleFraudAnalysis(transaction)}
-                              title="Fraud Check"
-                            >
-                              🚨
-                            </button>
+
                             <button
                               className="btn btn-sm btn-secondary"
                               onClick={() => handleDuplicateCheck(transaction)}
@@ -904,38 +884,7 @@ const Transactions = () => {
                     </div>
                   )}
 
-                  {/* Fraud Detection */}
-                  {aiAnalysisModal.analysis.fraudAnalysis && (
-                    <div className="analysis-section">
-                      <h4>🚨 Fraud Detection</h4>
-                      {aiAnalysisModal.analysis.fraudAnalysis.error ? (
-                        <div className="error-message">
-                          <strong>Error:</strong> {aiAnalysisModal.analysis.fraudAnalysis.error}
-                          {aiAnalysisModal.analysis.fraudAnalysis.details && (
-                            <p>Details: {aiAnalysisModal.analysis.fraudAnalysis.details}</p>
-                          )}
-                        </div>
-                      ) : (
-                        <>
-                          <div className={`risk-indicator ${aiAnalysisModal.analysis.fraudAnalysis.riskLevel || 'unknown'}`}>
-                            Risk Level: {(aiAnalysisModal.analysis.fraudAnalysis.riskLevel || 'unknown').toUpperCase()}
-                          </div>
-                          {aiAnalysisModal.analysis.fraudAnalysis.alerts && aiAnalysisModal.analysis.fraudAnalysis.alerts.length > 0 && (
-                            <div className="alerts-list">
-                              <strong>Alerts:</strong>
-                              <ul>
-                                {aiAnalysisModal.analysis.fraudAnalysis.alerts.map((alert, index) => (
-                                  <li key={index}>
-                                    {typeof alert === 'string' ? alert : `${alert.alert_type || 'Alert'}: ${alert.description || 'No description'} (Risk: ${alert.risk_score || 'Unknown'})`}
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </div>
-                  )}
+
 
                   {/* Duplicate Detection */}
                   {aiAnalysisModal.analysis.duplicateAnalysis && (

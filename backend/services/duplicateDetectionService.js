@@ -1,12 +1,11 @@
 const db = require('../database/init');
 const moment = require('moment');
-const crypto = require('crypto');
+const llmService = require('./llmService');
 
 class DuplicateDetectionService {
   constructor() {
     this.similarityThreshold = 0.8;
-    this.timeWindowDays = 30;
-    this.amountTolerance = 0.01;
+    this.amountTolerance = 0.05; // 5% tolerance for amount differences
   }
 
   // Main duplicate detection for transactions
@@ -675,6 +674,74 @@ class DuplicateDetectionService {
         resolve(results);
       });
     });
+  }
+
+  // Check for duplicate transactions
+  async checkTransactionDuplicates(transaction, companyId) {
+    try {
+      // Get similar transactions for LLM analysis
+      const similarTransactions = await this.findSimilarTransactions(transaction, companyId);
+      
+      // Try LLM-powered duplicate detection first
+      try {
+        const llmResult = await llmService.detectDuplicates(transaction, similarTransactions);
+        
+        if (llmResult.success) {
+          const duplicateAnalysis = llmResult.duplicateAnalysis;
+          
+          // Create duplicate group if duplicates found
+          if (duplicateAnalysis.isDuplicate && duplicateAnalysis.similarTransactions.length > 0) {
+            await this.createDuplicateGroup(transaction.id, companyId, {
+              groupType: 'llm_detected',
+              confidence: duplicateAnalysis.confidence,
+              reasoning: duplicateAnalysis.reasoning,
+              similarTransactions: duplicateAnalysis.similarTransactions
+            });
+          }
+          
+          return {
+            isDuplicate: duplicateAnalysis.isDuplicate,
+            confidence: duplicateAnalysis.confidence,
+            duplicates: similarTransactions.filter(t => 
+              duplicateAnalysis.similarTransactions.includes(t.id)
+            ),
+            reasoning: duplicateAnalysis.reasoning,
+            recommendation: duplicateAnalysis.recommendation,
+            llmPowered: true
+          };
+        }
+      } catch (llmError) {
+        console.log('LLM duplicate detection failed, falling back to rule-based detection:', llmError.message);
+      }
+
+      // Fallback to rule-based detection
+      const analysis = await this.performRuleBasedDuplicateDetection(transaction, similarTransactions);
+      
+      // Create duplicate group if duplicates found
+      if (analysis.isDuplicate && analysis.duplicates.length > 0) {
+        await this.createDuplicateGroup(transaction.id, companyId, {
+          groupType: 'rule_based',
+          confidence: analysis.confidence,
+          reasoning: analysis.reasoning,
+          similarTransactions: analysis.duplicates.map(d => d.id)
+        });
+      }
+      
+      return {
+        ...analysis,
+        llmPowered: false
+      };
+    } catch (error) {
+      console.error('Error in duplicate detection:', error);
+      return {
+        isDuplicate: false,
+        confidence: 0.0,
+        duplicates: [],
+        reasoning: 'Error during duplicate detection',
+        recommendation: 'keep',
+        llmPowered: false
+      };
+    }
   }
 }
 

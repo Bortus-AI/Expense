@@ -25,7 +25,7 @@ async function testDatabase() {
     console.log('Available tables:', tables.map(t => t.name));
     
     // Check if AI tables exist
-    const aiTables = ['categorization_patterns', 'fraud_alerts', 'duplicate_groups', 'ml_models', 'ml_predictions'];
+    const aiTables = ['categorization_patterns', 'duplicate_groups', 'ml_models', 'ml_predictions'];
     for (const table of aiTables) {
       const exists = tables.some(t => t.name === table);
       console.log(`${table}: ${exists ? 'EXISTS' : 'MISSING'}`);

@@ -8,7 +8,7 @@ const AIDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
-  const [fraudAlerts, setFraudAlerts] = useState([]);
+
   const [duplicateGroups, setDuplicateGroups] = useState([]);
   const [recurringPatterns, setRecurringPatterns] = useState([]);
 
@@ -19,15 +19,13 @@ const AIDashboard = () => {
   const loadDashboardData = async () => {
     setLoading(true);
     try {
-      const [statsRes, alertsRes, duplicatesRes, patternsRes] = await Promise.all([
+      const [statsRes, duplicatesRes, patternsRes] = await Promise.all([
         aiAPI.getDashboardStats(),
-        aiAPI.getFraudAlerts(),
         aiAPI.getDuplicateGroups(),
         aiAPI.getRecurringPatterns()
       ]);
 
       setStats(statsRes.data.dashboard);
-      setFraudAlerts(alertsRes.data.alerts || []);
       setDuplicateGroups(duplicatesRes.data.duplicateGroups || []);
       setRecurringPatterns(patternsRes.data.patterns || []);
     } catch (error) {
@@ -38,16 +36,7 @@ const AIDashboard = () => {
     }
   };
 
-  const handleFraudAlertUpdate = async (alertId, status) => {
-    try {
-      await aiAPI.updateFraudAlert(alertId, status);
-      toast.success('Fraud alert updated successfully');
-      loadDashboardData(); // Reload data
-    } catch (error) {
-      console.error('Error updating fraud alert:', error);
-      toast.error('Error updating fraud alert');
-    }
-  };
+
 
   const handleDuplicateGroupUpdate = async (groupId, status) => {
     try {
@@ -95,12 +84,7 @@ const AIDashboard = () => {
         >
           Overview
         </button>
-        <button 
-          className={`tab-button ${activeTab === 'fraud' ? 'active' : ''}`}
-          onClick={() => setActiveTab('fraud')}
-        >
-          Fraud Detection
-        </button>
+
         <button 
           className={`tab-button ${activeTab === 'duplicates' ? 'active' : ''}`}
           onClick={() => setActiveTab('duplicates')}
@@ -130,16 +114,7 @@ const AIDashboard = () => {
               </div>
             </div>
 
-            <div className="stat-card">
-              <h3>Fraud Detection</h3>
-              <div className="stat-content">
-                <div className="stat-number">{stats?.fraud?.total_alerts || 0}</div>
-                <div className="stat-label">Total Alerts</div>
-                <div className="stat-detail">
-                  Pending: {fraudAlerts.filter(a => a.status === 'pending').length}
-                </div>
-              </div>
-            </div>
+
 
             <div className="stat-card">
               <h3>Duplicate Detection</h3>
@@ -167,66 +142,7 @@ const AIDashboard = () => {
         </div>
       )}
 
-      {/* Fraud Detection Tab */}
-      {activeTab === 'fraud' && (
-        <div className="tab-content">
-          <div className="card">
-            <div className="card-header">
-              <h3>Fraud Alerts</h3>
-              <p>Recent fraud detection alerts</p>
-            </div>
-            <div className="table-container">
-              <table className="table">
-                <thead>
-                  <tr>
-                    <th>Type</th>
-                    <th>Description</th>
-                    <th>Risk Score</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {fraudAlerts.map((alert) => (
-                    <tr key={alert.id}>
-                      <td>{alert.alert_type}</td>
-                      <td>{alert.description}</td>
-                      <td>
-                        <span className={`badge ${alert.risk_score > 0.7 ? 'badge-danger' : alert.risk_score > 0.4 ? 'badge-warning' : 'badge-info'}`}>
-                          {(alert.risk_score * 100).toFixed(0)}%
-                        </span>
-                      </td>
-                      <td>
-                        <span className={`badge ${alert.status === 'pending' ? 'badge-warning' : alert.status === 'confirmed' ? 'badge-danger' : 'badge-success'}`}>
-                          {alert.status}
-                        </span>
-                      </td>
-                      <td>
-                        {alert.status === 'pending' && (
-                          <div className="btn-group">
-                            <button 
-                              className="btn btn-sm btn-danger"
-                              onClick={() => handleFraudAlertUpdate(alert.id, 'confirmed')}
-                            >
-                              Confirm
-                            </button>
-                            <button 
-                              className="btn btn-sm btn-success"
-                              onClick={() => handleFraudAlertUpdate(alert.id, 'dismissed')}
-                            >
-                              Dismiss
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {/* Duplicate Detection Tab */}
       {activeTab === 'duplicates' && (

@@ -94,6 +94,12 @@ const Navbar = () => {
           >
             🤖 AI Dashboard
           </Link>
+          <Link 
+            to="/llm-test" 
+            className={`nav-link ${isActive('/llm-test') ? 'active' : ''}`}
+          >
+            🧪 LLM Test
+          </Link>
         </div>
 
         <div className="navbar-user">
