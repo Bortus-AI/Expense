@@ -50,7 +50,7 @@ class LLMService {
 
   // Enhanced OCR text processing
   async processOCRText(ocrText, receiptData = {}) {
-    const systemPrompt = `You are an expert at processing receipt and invoice text. Your task is to extract and structure information from OCR text. Always respond in valid JSON format.`;
+    const systemPrompt = `You are an expert at processing receipt and invoice text. Your task is to extract and structure information from OCR text. Always respond in valid JSON format. Be very careful to extract the correct total amount and merchant name. NEVER return generic terms like "name" or "merchant" - always extract the actual business name.`;
 
     const prompt = `
 Please analyze this OCR text from a receipt and extract the following information in JSON format:
@@ -61,16 +61,23 @@ Receipt Data: ${JSON.stringify(receiptData)}
 
 Extract and return ONLY a JSON object with these fields:
 {
-  "merchant": "extracted merchant name",
-  "amount": "extracted total amount",
-  "date": "extracted date",
+  "merchant": "extracted merchant name (be specific, avoid generic terms like 'name' or 'merchant')",
+  "amount": "extracted total amount (numeric value only, no currency symbols)",
+  "date": "extracted date in YYYY-MM-DD format if possible",
   "items": ["list of items purchased"],
   "category": "best category for this transaction",
   "confidence": 0.95,
   "notes": "any additional relevant information"
 }
 
-If any field cannot be determined, use null. Be precise and accurate.`;
+IMPORTANT:
+- For amount: Extract the TOTAL amount, not individual line items. Look for words like "TOTAL", "AMOUNT DUE", "BALANCE", etc.
+- For merchant: Look for company names, store names, or vendor names. NEVER return generic terms like "name", "merchant", or "vendor". Extract the actual business name.
+- For date: Look for invoice dates, transaction dates, or billing dates.
+- If any field cannot be determined, use null.
+- If you cannot extract a valid merchant name, return null for merchant.
+
+Be precise and accurate.`;
 
     try {
       const response = await this.generateResponse(prompt, systemPrompt);
@@ -78,6 +85,14 @@ If any field cannot be determined, use null. Be precise and accurate.`;
       // Try to parse JSON response
       try {
         const parsed = JSON.parse(response);
+        
+        // Validate the extracted data
+        if (parsed.merchant === 'name' || parsed.merchant === 'merchant' || parsed.merchant === 'vendor' || 
+            parsed.merchant?.includes('If a more specific category') || parsed.merchant?.includes('generic')) {
+          console.log('LLM returned invalid merchant name, setting to null:', parsed.merchant);
+          parsed.merchant = null;
+        }
+        
         return {
           success: true,
           data: parsed,

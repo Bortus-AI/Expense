@@ -66,41 +66,47 @@ const findPotentialMatches = (receipt, transactions) => {
       }
     }
 
-    // Merchant/description matching
-    if (receipt.extracted_merchant && transaction.description) {
-      const merchantWords = receipt.extracted_merchant.toLowerCase().split(/\s+/);
-      const descriptionLower = transaction.description.toLowerCase();
-      
-      let wordMatches = 0;
-      let significantWordMatches = 0;
-      
-      merchantWords.forEach(word => {
-        // Skip common words like "llc", "inc", "corp", etc.
-        if (word.length > 2 && !['llc', 'inc', 'corp', 'ltd', 'company', 'co'].includes(word)) {
-          if (descriptionLower.includes(word)) {
-            wordMatches++;
-            // Give extra credit for longer, more specific words
-            if (word.length >= 5) {
-              significantWordMatches++;
-            }
-          }
-        }
-      });
-      
-      if (wordMatches > 0) {
-        // Base match percentage
-        const baseMatchPercent = (wordMatches / merchantWords.filter(w => 
-          w.length > 2 && !['llc', 'inc', 'corp', 'ltd', 'company', 'co'].includes(w)
-        ).length) * 15;
-        
-        // Bonus for significant word matches (like "openai")
-        const bonusPoints = significantWordMatches * 5;
-        
-        const totalMerchantPoints = Math.min(baseMatchPercent + bonusPoints, 20); // Cap at 20 points
-        confidence += totalMerchantPoints;
-        reasons.push(`Merchant keywords match (${wordMatches} words, ${significantWordMatches} significant)`);
-      }
-    }
+         // Merchant/description matching
+     if (receipt.extracted_merchant && transaction.description) {
+       const merchantWords = receipt.extracted_merchant.toLowerCase().split(/\s+/);
+       const descriptionLower = transaction.description.toLowerCase();
+       
+       let wordMatches = 0;
+       let significantWordMatches = 0;
+       
+       // Also check for exact merchant name match
+       if (descriptionLower.includes(receipt.extracted_merchant.toLowerCase())) {
+         confidence += 25;
+         reasons.push('Exact merchant name match');
+       } else {
+         merchantWords.forEach(word => {
+           // Skip common words like "llc", "inc", "corp", etc.
+           if (word.length > 2 && !['llc', 'inc', 'corp', 'ltd', 'company', 'co', 'name'].includes(word)) {
+             if (descriptionLower.includes(word)) {
+               wordMatches++;
+               // Give extra credit for longer, more specific words
+               if (word.length >= 5) {
+                 significantWordMatches++;
+               }
+             }
+           }
+         });
+         
+         if (wordMatches > 0) {
+           // Base match percentage
+           const baseMatchPercent = (wordMatches / merchantWords.filter(w => 
+             w.length > 2 && !['llc', 'inc', 'corp', 'ltd', 'company', 'co', 'name'].includes(w)
+           ).length) * 15;
+           
+           // Bonus for significant word matches (like "openai")
+           const bonusPoints = significantWordMatches * 5;
+           
+           const totalMerchantPoints = Math.min(baseMatchPercent + bonusPoints, 20); // Cap at 20 points
+           confidence += totalMerchantPoints;
+           reasons.push(`Merchant keywords match (${wordMatches} words, ${significantWordMatches} significant)`);
+         }
+       }
+     }
 
     // Only include if confidence is above threshold
     if (confidence >= 10) {
@@ -128,6 +134,13 @@ const triggerAutoMatchForReceipt = (receiptId) => {
       return;
     }
 
+    console.log(`Auto-matching receipt:`, {
+      id: receipt.id,
+      amount: receipt.extracted_amount,
+      merchant: receipt.extracted_merchant,
+      date: receipt.extracted_date
+    });
+
     // Get unmatched transactions
     const transactionQuery = `
       SELECT t.* FROM transactions t
@@ -146,8 +159,8 @@ const triggerAutoMatchForReceipt = (receiptId) => {
 
       const potentialMatches = findPotentialMatches(receipt, transactions);
       
-      // Auto-match if confidence is high enough (70% threshold)
-      if (potentialMatches.length > 0 && potentialMatches[0].confidence >= 70) {
+             // Auto-match if confidence is high enough (lowered to 60% threshold)
+       if (potentialMatches.length > 0 && potentialMatches[0].confidence >= 60) {
         const bestMatch = potentialMatches[0];
         
         // Create the match
@@ -244,11 +257,17 @@ async function processReceipt(filePath, originalFilename) {
 
     // Enhanced processing with LLM
     try {
+      console.log('Starting LLM OCR processing for:', originalFilename);
+      console.log('OCR Text length:', ocrText.length);
+      console.log('Sample OCR text:', ocrText.substring(0, 200) + '...');
+      
       const llmResult = await llmService.processOCRText(ocrText, {
         filename: originalFilename,
         fileSize: fs.statSync(filePath).size,
         fileType: fileExtension
       });
+
+      console.log('LLM Result:', llmResult);
 
       if (llmResult.success) {
         extractedData = {
@@ -257,6 +276,7 @@ async function processReceipt(filePath, originalFilename) {
           llmProcessed: true,
           rawOcrText: ocrText
         };
+        console.log('LLM processing successful:', extractedData);
       } else {
         // Fallback to basic extraction
         extractedData = {
@@ -265,6 +285,7 @@ async function processReceipt(filePath, originalFilename) {
           rawOcrText: ocrText,
           notes: `LLM processing failed: ${llmResult.error}`
         };
+        console.log('LLM processing failed, using fallback:', llmResult.error);
       }
     } catch (llmError) {
       console.log('LLM OCR processing failed, using basic extraction:', llmError.message);
@@ -550,12 +571,61 @@ router.post('/upload', upload.single('receipt'), async (req, res) => {
             amount: breakdown.amount,
             date: breakdown.date,
             merchant: breakdown.merchant,
-            finalAmount: breakdown.amount
+            finalAmount: breakdown.amount,
+            llmProcessed: breakdown.llmProcessed,
+            notes: breakdown.notes
           });
           
           // Trigger automatic matching for this receipt
-          if (breakdown.amount) {
-            triggerAutoMatchForReceipt(receiptId);
+          let amountForMatching = breakdown.amount;
+          
+          // Convert amount to number if it's a string (LLM might return "$20.00")
+          if (typeof amountForMatching === 'string') {
+            // Remove currency symbols, commas, and convert to number
+            amountForMatching = parseFloat(amountForMatching.replace(/[$,]/g, ''));
+          }
+          
+          // Also handle if amount is already a number but needs validation
+          if (typeof amountForMatching === 'number' && isNaN(amountForMatching)) {
+            amountForMatching = null;
+          }
+          
+          // Check if we have valid data for matching
+          const hasValidAmount = amountForMatching && !isNaN(amountForMatching);
+          const hasValidMerchant = breakdown.merchant && breakdown.merchant !== 'name' && !breakdown.merchant.includes('If a more specific category');
+          
+          console.log(`Auto-match check for receipt ${receiptId}:`, {
+            amount: amountForMatching,
+            merchant: breakdown.merchant,
+            hasValidAmount,
+            hasValidMerchant
+          });
+          
+          if (hasValidAmount && hasValidMerchant) {
+            console.log(`✅ Triggering auto-match for receipt ${receiptId} with amount: ${amountForMatching}, merchant: ${breakdown.merchant}`);
+            
+            // Update the receipt with the extracted data for matching
+            db.run(`
+              UPDATE receipts 
+              SET extracted_amount = ?, extracted_merchant = ?, extracted_date = ?
+              WHERE id = ?
+            `, [amountForMatching, breakdown.merchant, breakdown.date, receiptId], (err) => {
+              if (err) {
+                console.error('Error updating receipt for matching:', err);
+              } else {
+                console.log(`✅ Updated receipt ${receiptId} with extracted data, triggering auto-match...`);
+                // Add a small delay to ensure the database update is complete
+                setTimeout(() => {
+                  triggerAutoMatchForReceipt(receiptId);
+                }, 100);
+              }
+            });
+          } else {
+            console.log(`❌ Skipping auto-match for receipt ${receiptId}:`, {
+              reason: !hasValidAmount ? 'Invalid amount' : 'Invalid merchant',
+              amount: breakdown.amount,
+              merchant: breakdown.merchant
+            });
           }
         }
       });
@@ -847,6 +917,79 @@ router.get('/unmatched/list', (req, res) => {
       return res.status(500).json({ error: err.message });
     }
     res.json(rows);
+  });
+});
+
+// Manual trigger for auto-matching existing receipts
+router.post('/trigger-auto-match/:id', (req, res) => {
+  const receiptId = req.params.id;
+  
+  console.log(`Manual trigger for auto-matching receipt ${receiptId}`);
+  
+  // Check if receipt exists and belongs to user's company
+  db.get('SELECT * FROM receipts WHERE id = ? AND company_id = ?', [receiptId, req.companyId], (err, receipt) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    if (!receipt) {
+      return res.status(404).json({ error: 'Receipt not found' });
+    }
+    
+    // Check if receipt already has a match
+    db.get('SELECT COUNT(*) as count FROM matches WHERE receipt_id = ? AND user_confirmed = 1', [receiptId], (err, result) => {
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
+      
+      if (result.count > 0) {
+        return res.status(400).json({ error: 'Receipt already has a confirmed match' });
+      }
+      
+      // Trigger auto-match
+      triggerAutoMatchForReceipt(receiptId);
+      
+      res.json({ 
+        message: 'Auto-match triggered successfully',
+        receiptId: receiptId
+      });
+    });
+  });
+});
+
+// Bulk trigger auto-matching for all unmatched receipts
+router.post('/trigger-auto-match-all', (req, res) => {
+  console.log('Bulk trigger for auto-matching all unmatched receipts');
+  
+  // Get all receipts without confirmed matches
+  const query = `
+    SELECT r.* FROM receipts r
+    WHERE r.company_id = ? 
+    AND r.id NOT IN (
+      SELECT receipt_id FROM matches WHERE user_confirmed = 1
+    )
+    AND r.extracted_amount IS NOT NULL 
+    AND r.extracted_merchant IS NOT NULL
+    AND r.extracted_merchant != 'name'
+    AND r.extracted_merchant NOT LIKE '%If a more specific category%'
+  `;
+  
+  db.all(query, [req.companyId], (err, receipts) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    
+    console.log(`Found ${receipts.length} receipts eligible for auto-matching`);
+    
+    let processedCount = 0;
+    receipts.forEach(receipt => {
+      triggerAutoMatchForReceipt(receipt.id);
+      processedCount++;
+    });
+    
+    res.json({ 
+      message: `Auto-match triggered for ${processedCount} receipts`,
+      processedCount: processedCount
+    });
   });
 });
 
