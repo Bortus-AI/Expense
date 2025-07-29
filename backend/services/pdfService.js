@@ -19,107 +19,117 @@ class PDFService {
 
   // Generate Transaction Summary Report
   async generateTransactionReport(transactions, options = {}) {
-    const {
-      companyName = 'Company',
-      startDate,
-      endDate,
-      title = 'Transaction Summary Report',
-      includeMatched = true,
-      includeUnmatched = true
-    } = options;
+    try {
+      const {
+        companyName = 'Company',
+        startDate,
+        endDate,
+        title = 'Transaction Summary Report',
+        includeMatched = true,
+        includeUnmatched = true
+      } = options;
 
-    const doc = new PDFDocument({ margin: this.pageMargin, layout: 'landscape' });
-    let yPosition = this.pageMargin;
+      const doc = new PDFDocument({ margin: this.pageMargin, layout: 'landscape' });
+      let yPosition = this.pageMargin;
 
-    // Header
-    yPosition = this.addHeader(doc, title, companyName, yPosition);
-    
-    // Date Range
-    if (startDate || endDate) {
-      yPosition = this.addDateRange(doc, startDate, endDate, yPosition);
+      // Header
+      yPosition = this.addHeader(doc, title, companyName, yPosition);
+      
+      // Date Range
+      if (startDate || endDate) {
+        yPosition = this.addDateRange(doc, startDate, endDate, yPosition);
+      }
+
+      // Statistics Summary
+      const stats = this.calculateTransactionStats(transactions);
+      yPosition = this.addStatsSummary(doc, stats, yPosition);
+
+      // Transactions Table
+      yPosition = this.addTransactionsTable(doc, transactions, yPosition, {
+        includeMatched,
+        includeUnmatched
+      });
+
+      // Footer
+      this.addFooter(doc);
+
+      return doc;
+    } catch (error) {
+      console.error('Error generating transaction report:', error);
+      throw new Error('Failed to generate transaction report');
     }
-
-    // Statistics Summary
-    const stats = this.calculateTransactionStats(transactions);
-    yPosition = this.addStatsSummary(doc, stats, yPosition);
-
-    // Transactions Table
-    yPosition = this.addTransactionsTable(doc, transactions, yPosition, {
-      includeMatched,
-      includeUnmatched
-    });
-
-    // Footer
-    this.addFooter(doc);
-
-    return doc;
   }
 
   // Generate Receipt Gallery Report
   async generateReceiptGalleryReport(receipts, options = {}) {
-    const {
-      companyName = 'Company',
-      title = 'Receipt Gallery Report',
-      groupBy = 'date', // 'date', 'merchant', 'amount'
-      includeMatched = true,
-      includeUnmatched = true,
-      maxPagesPerReceipt = null // null = all pages, number = limit pages per PDF
-    } = options;
+    try {
+      const {
+        companyName = 'Company',
+        title = 'Receipt Gallery Report',
+        groupBy = 'date', // 'date', 'merchant', 'amount'
+        includeMatched = true,
+        includeUnmatched = true,
+        maxPagesPerReceipt = null // null = all pages, number = limit pages per PDF
+      } = options;
 
-    const doc = new PDFDocument({ margin: this.pageMargin, layout: 'landscape' });
-    let yPosition = this.pageMargin;
+      const doc = new PDFDocument({ margin: this.pageMargin, layout: 'landscape' });
+      let yPosition = this.pageMargin;
 
-    // Generate subtitle based on match status filtering
-    let subtitle = '';
-    if (includeMatched && !includeUnmatched) {
-      subtitle = 'Matched Receipts Only';
-    } else if (!includeMatched && includeUnmatched) {
-      subtitle = 'Unmatched Receipts Only';
-    } else {
-      subtitle = 'All Receipts (Matched & Unmatched)';
-    }
-
-    // Header
-    yPosition = this.addHeader(doc, title || 'Receipt Gallery Report', companyName, yPosition);
-    
-    // Add subtitle for match status
-    if (subtitle) {
-      doc.fontSize(12)
-         .fillColor(this.colors.lightText)
-         .text(subtitle, this.pageMargin, yPosition);
-      yPosition += 25;
-    }
-
-    // Group receipts
-    const groupedReceipts = this.groupReceipts(receipts, groupBy);
-
-    if (Object.keys(groupedReceipts).length === 0) {
-      const emptyMessage = includeMatched && !includeUnmatched 
-        ? 'No matched receipts found for the selected criteria.'
-        : !includeMatched && includeUnmatched
-        ? 'No unmatched receipts found for the selected criteria.'
-        : 'No receipts found for the selected criteria.';
-        
-      doc.fontSize(12)
-         .fillColor(this.colors.text)
-         .text(emptyMessage, this.pageMargin, yPosition);
-    } else {
-      // Add grouped receipt sections
-      for (const [groupKey, groupReceipts] of Object.entries(groupedReceipts)) {
-        yPosition = this.addReceiptGroup(doc, groupKey, groupReceipts, yPosition);
+      // Generate subtitle based on match status filtering
+      let subtitle = '';
+      if (includeMatched && !includeUnmatched) {
+        subtitle = 'Matched Receipts Only';
+      } else if (!includeMatched && includeUnmatched) {
+        subtitle = 'Unmatched Receipts Only';
+      } else {
+        subtitle = 'All Receipts (Matched & Unmatched)';
       }
+
+      // Header
+      yPosition = this.addHeader(doc, title || 'Receipt Gallery Report', companyName, yPosition);
+      
+      // Add subtitle for match status
+      if (subtitle) {
+        doc.fontSize(12)
+           .fillColor(this.colors.lightText)
+           .text(subtitle, this.pageMargin, yPosition);
+        yPosition += 25;
+      }
+
+      // Group receipts
+      const groupedReceipts = this.groupReceipts(receipts, groupBy);
+
+      if (Object.keys(groupedReceipts).length === 0) {
+        const emptyMessage = includeMatched && !includeUnmatched 
+          ? 'No matched receipts found for the selected criteria.'
+          : !includeMatched && includeUnmatched
+          ? 'No unmatched receipts found for the selected criteria.'
+          : 'No receipts found for the selected criteria.';
+          
+        doc.fontSize(12)
+           .fillColor(this.colors.text)
+           .text(emptyMessage, this.pageMargin, yPosition);
+      } else {
+        // Add grouped receipt sections
+        for (const [groupKey, groupReceipts] of Object.entries(groupedReceipts)) {
+          yPosition = this.addReceiptGroup(doc, groupKey, groupReceipts, yPosition);
+        }
+      }
+
+      // Footer
+      this.addFooter(doc);
+
+      // If there are PDF receipts to embed, merge them into the final document
+      if (doc._pdfReceiptsToEmbed && doc._pdfReceiptsToEmbed.length > 0) {
+        console.log(`Embedding ${doc._pdfReceiptsToEmbed.length} PDF receipts into the report`);
+        return await this.embedPdfReceipts(doc, doc._pdfReceiptsToEmbed, maxPagesPerReceipt);
+      }
+
+      return doc;
+    } catch (error) {
+      console.error('Error generating receipt gallery report:', error);
+      throw new Error('Failed to generate receipt gallery report');
     }
-
-    // Footer
-    this.addFooter(doc);
-
-    // If there are PDF receipts to embed, merge them into the final document
-    if (doc._pdfReceiptsToEmbed && doc._pdfReceiptsToEmbed.length > 0) {
-      console.log(`Embedding ${doc._pdfReceiptsToEmbed.length} PDF receipts into the report`);
-      return await this.embedPdfReceipts(doc, doc._pdfReceiptsToEmbed, maxPagesPerReceipt);
-    }
-
-    return doc;
   }
 
   async embedPdfReceipts(mainDoc, pdfReceipts, maxPagesPerReceipt = null) {
@@ -133,6 +143,11 @@ class PDFService {
         mainDoc.on('data', chunk => chunks.push(chunk));
         mainDoc.on('end', () => resolve(Buffer.concat(chunks)));
         mainDoc.on('error', reject);
+        
+        // Add timeout to prevent hanging
+        setTimeout(() => {
+          reject(new Error('PDF generation timeout'));
+        }, 30000);
       });
 
       // Create a new PDF document using pdf-lib for merging
@@ -171,13 +186,15 @@ class PDFService {
         // List the PDF receipts that will be included
         let listY = height - 180;
         pdfReceipts.forEach((pdfReceipt, index) => {
-          separatorPage.drawText(`${index + 1}. ${pdfReceipt.filename}`, {
-            x: 70,
-            y: listY,
-            size: 10,
-            color: rgb(0.3, 0.3, 0.3)
-          });
-          listY -= 20;
+          if (listY > 50) { // Ensure we don't go off the page
+            separatorPage.drawText(`${index + 1}. ${pdfReceipt.filename}`, {
+              x: 70,
+              y: listY,
+              size: 10,
+              color: rgb(0.3, 0.3, 0.3)
+            });
+            listY -= 20;
+          }
         });
       }
 
@@ -227,7 +244,7 @@ class PDFService {
             });
 
             // Add OCR extracted data if available
-            if (pdfReceipt.receiptData.extracted_merchant) {
+            if (pdfReceipt.receiptData && pdfReceipt.receiptData.extracted_merchant) {
               titlePage.drawText(`Merchant: ${pdfReceipt.receiptData.extracted_merchant}`, {
                 x: 50,
                 y: height - 150,
@@ -236,16 +253,19 @@ class PDFService {
               });
             }
 
-            if (pdfReceipt.receiptData.extracted_amount) {
-              titlePage.drawText(`Amount: $${parseFloat(pdfReceipt.receiptData.extracted_amount).toFixed(2)}`, {
-                x: 50,
-                y: height - 170,
-                size: 12,
-                color: rgb(0.3, 0.3, 0.3)
-              });
+            if (pdfReceipt.receiptData && pdfReceipt.receiptData.extracted_amount) {
+              const amount = parseFloat(pdfReceipt.receiptData.extracted_amount);
+              if (!isNaN(amount)) {
+                titlePage.drawText(`Amount: $${amount.toFixed(2)}`, {
+                  x: 50,
+                  y: height - 170,
+                  size: 12,
+                  color: rgb(0.3, 0.3, 0.3)
+                });
+              }
             }
 
-            if (pdfReceipt.receiptData.extracted_date) {
+            if (pdfReceipt.receiptData && pdfReceipt.receiptData.extracted_date) {
               titlePage.drawText(`Date: ${pdfReceipt.receiptData.extracted_date}`, {
                 x: 50,
                 y: height - 190,
@@ -271,6 +291,7 @@ class PDFService {
           }
         } catch (pdfError) {
           console.error(`Error embedding PDF receipt ${pdfReceipt.filename}:`, pdfError);
+          // Continue with other receipts instead of failing completely
         }
       }
 
@@ -290,312 +311,373 @@ class PDFService {
       
     } catch (error) {
       console.error('Error embedding PDF receipts:', error);
-      throw error;
+      throw new Error('Failed to embed PDF receipts');
     }
   }
 
   // Generate Company Analytics Report
   async generateAnalyticsReport(analytics, options = {}) {
-    const {
-      companyName = 'Company',
-      title = 'Expense Analytics Report',
-      period = 'Monthly'
-    } = options;
+    try {
+      const {
+        companyName = 'Company',
+        title = 'Expense Analytics Report',
+        period = 'Monthly'
+      } = options;
 
-    const doc = new PDFDocument({ margin: this.pageMargin, layout: 'landscape' });
-    let yPosition = this.pageMargin;
+      const doc = new PDFDocument({ margin: this.pageMargin, layout: 'landscape' });
+      let yPosition = this.pageMargin;
 
-    // Header
-    yPosition = this.addHeader(doc, title, companyName, yPosition);
+      // Header
+      yPosition = this.addHeader(doc, title, companyName, yPosition);
 
-    // Key Metrics
-    yPosition = this.addKeyMetrics(doc, analytics, yPosition);
+      // Key Metrics
+      yPosition = this.addKeyMetrics(doc, analytics, yPosition);
 
-    // Category Breakdown
-    yPosition = this.addCategoryBreakdown(doc, analytics.categories, yPosition);
+      // Category Breakdown
+      if (analytics.categories) {
+        yPosition = this.addCategoryBreakdown(doc, analytics.categories, yPosition);
+      }
 
-    // Trends Chart (text-based)
-    yPosition = this.addTrendsChart(doc, analytics.trends, yPosition);
+      // Trends Chart (text-based)
+      if (analytics.trends) {
+        yPosition = this.addTrendsChart(doc, analytics.trends, yPosition);
+      }
 
-    // Recommendations
-    yPosition = this.addRecommendations(doc, analytics.recommendations, yPosition);
+      // Recommendations
+      if (analytics.recommendations) {
+        yPosition = this.addRecommendations(doc, analytics.recommendations, yPosition);
+      }
 
-    // Footer
-    this.addFooter(doc);
+      // Footer
+      this.addFooter(doc);
 
-    return doc;
+      return doc;
+    } catch (error) {
+      console.error('Error generating analytics report:', error);
+      throw new Error('Failed to generate analytics report');
+    }
   }
 
   // Generate Reconciliation Report
   async generateReconciliationReport(data, options = {}) {
-    const {
-      companyName = 'Company',
-      title = 'Reconciliation Report',
-      period
-    } = options;
+    try {
+      const {
+        companyName = 'Company',
+        title = 'Reconciliation Report',
+        period
+      } = options;
 
-    const doc = new PDFDocument({ margin: this.pageMargin, layout: 'landscape' });
-    let yPosition = this.pageMargin;
+      const doc = new PDFDocument({ margin: this.pageMargin, layout: 'landscape' });
+      let yPosition = this.pageMargin;
 
-    // Header
-    yPosition = this.addHeader(doc, title, companyName, yPosition);
+      // Header
+      yPosition = this.addHeader(doc, title, companyName, yPosition);
 
-    // Reconciliation Summary
-    yPosition = this.addReconciliationSummary(doc, data, yPosition);
+      // Reconciliation Summary
+      yPosition = this.addReconciliationSummary(doc, data, yPosition);
 
-    // Matched Items
-    yPosition = this.addMatchedItems(doc, data.matched, yPosition);
+      // Matched Items
+      if (data.matched) {
+        yPosition = this.addMatchedItems(doc, data.matched, yPosition);
+      }
 
-    // Unmatched Transactions
-    if (data.unmatchedTransactions?.length > 0) {
-      yPosition = this.addUnmatchedSection(doc, 'Unmatched Transactions', data.unmatchedTransactions, yPosition);
+      // Unmatched Transactions
+      if (data.unmatchedTransactions?.length > 0) {
+        yPosition = this.addUnmatchedSection(doc, 'Unmatched Transactions', data.unmatchedTransactions, yPosition);
+      }
+
+      // Unmatched Receipts
+      if (data.unmatchedReceipts?.length > 0) {
+        yPosition = this.addUnmatchedSection(doc, 'Unmatched Receipts', data.unmatchedReceipts, yPosition);
+      }
+
+      // Footer
+      this.addFooter(doc);
+
+      return doc;
+    } catch (error) {
+      console.error('Error generating reconciliation report:', error);
+      throw new Error('Failed to generate reconciliation report');
     }
-
-    // Unmatched Receipts
-    if (data.unmatchedReceipts?.length > 0) {
-      yPosition = this.addUnmatchedSection(doc, 'Unmatched Receipts', data.unmatchedReceipts, yPosition);
-    }
-
-    // Footer
-    this.addFooter(doc);
-
-    return doc;
   }
 
   // Helper Methods
   addHeader(doc, title, companyName, yPosition) {
-    // Company Name
-    doc.fontSize(12)
-       .fillColor(this.colors.lightText)
-       .text(companyName, this.pageMargin, yPosition);
+    try {
+      // Sanitize inputs
+      const sanitizedTitle = String(title || 'Report').substring(0, 100);
+      const sanitizedCompanyName = String(companyName || 'Company').substring(0, 50);
 
-    yPosition += 20;
+      // Company Name
+      doc.fontSize(12)
+         .fillColor(this.colors.lightText)
+         .text(sanitizedCompanyName, this.pageMargin, yPosition);
 
-    // Report Title
-    doc.fontSize(24)
-       .fillColor(this.colors.primary)
-       .font('Helvetica-Bold')
-       .text(title, this.pageMargin, yPosition);
+      yPosition += 20;
 
-    yPosition += 30;
+      // Report Title
+      doc.fontSize(24)
+         .fillColor(this.colors.primary)
+         .font('Helvetica-Bold')
+         .text(sanitizedTitle, this.pageMargin, yPosition);
 
-    // Generated Date
-    doc.fontSize(10)
-       .fillColor(this.colors.lightText)
-       .font('Helvetica')
-       .text(`Generated on ${moment().format('MMMM DD, YYYY at h:mm A')}`, this.pageMargin, yPosition);
+      yPosition += 30;
 
-    yPosition += 40;
+      // Generated Date
+      doc.fontSize(10)
+         .fillColor(this.colors.lightText)
+         .font('Helvetica')
+         .text(`Generated on ${moment().format('MMMM DD, YYYY at h:mm A')}`, this.pageMargin, yPosition);
 
-    // Separator Line
-    doc.strokeColor(this.colors.primary)
-       .lineWidth(2)
-       .moveTo(this.pageMargin, yPosition)
-       .lineTo(doc.page.width - this.pageMargin, yPosition)
-       .stroke();
+      yPosition += 40;
 
-    return yPosition + 30;
+      // Separator Line
+      doc.strokeColor(this.colors.primary)
+         .lineWidth(2)
+         .moveTo(this.pageMargin, yPosition)
+         .lineTo(doc.page.width - this.pageMargin, yPosition)
+         .stroke();
+
+      return yPosition + 30;
+    } catch (error) {
+      console.error('Error adding header:', error);
+      return yPosition + 100; // Return safe position
+    }
   }
 
   addDateRange(doc, startDate, endDate, yPosition) {
-    const start = startDate ? moment(startDate).format('MMMM DD, YYYY') : 'Beginning';
-    const end = endDate ? moment(endDate).format('MMMM DD, YYYY') : 'Present';
+    try {
+      const start = startDate ? moment(startDate).format('MMMM DD, YYYY') : 'Beginning';
+      const end = endDate ? moment(endDate).format('MMMM DD, YYYY') : 'Present';
 
-    doc.fontSize(12)
-       .fillColor(this.colors.text)
-       .font('Helvetica-Bold')
-       .text(`Report Period: ${start} - ${end}`, this.pageMargin, yPosition);
+      doc.fontSize(12)
+         .fillColor(this.colors.text)
+         .font('Helvetica-Bold')
+         .text(`Report Period: ${start} - ${end}`, this.pageMargin, yPosition);
 
-    return yPosition + 30;
+      return yPosition + 30;
+    } catch (error) {
+      console.error('Error adding date range:', error);
+      return yPosition + 30;
+    }
   }
 
   addStatsSummary(doc, stats, yPosition) {
-    doc.fontSize(16)
-       .fillColor(this.colors.text)
-       .font('Helvetica-Bold')
-       .text('Summary', this.pageMargin, yPosition);
-
-    yPosition += 25;
-
-    const summaryData = [
-      ['Total Transactions:', stats.totalTransactions.toLocaleString()],
-      ['Total Amount:', `$${stats.totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`],
-      ['Matched Transactions:', `${stats.matchedTransactions} (${stats.matchPercentage}%)`],
-      ['Unmatched Transactions:', stats.unmatchedTransactions.toString()],
-      ['Average Transaction:', `$${stats.averageTransaction.toLocaleString('en-US', { minimumFractionDigits: 2 })}`]
-    ];
-
-    // Calculate better column layout
-    const availableWidth = doc.page.width - (2 * this.pageMargin);
-    const labelWidth = availableWidth * 0.4;
-    const valueWidth = availableWidth * 0.5;
-
-    summaryData.forEach(([label, value]) => {
-      doc.fontSize(10)
+    try {
+      doc.fontSize(16)
          .fillColor(this.colors.text)
-         .font('Helvetica')
-         .text(label, this.pageMargin, yPosition, { width: labelWidth })
          .font('Helvetica-Bold')
-         .text(value, this.pageMargin + labelWidth + 10, yPosition, { width: valueWidth });
-      yPosition += 18;
-    });
+         .text('Summary', this.pageMargin, yPosition);
 
-    return yPosition + 20;
+      yPosition += 25;
+
+      const summaryData = [
+        ['Total Transactions:', (stats.totalTransactions || 0).toLocaleString()],
+        ['Total Amount:', `$${(stats.totalAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`],
+        ['Matched Transactions:', `${stats.matchedTransactions || 0} (${stats.matchPercentage || 0}%)`],
+        ['Unmatched Transactions:', (stats.unmatchedTransactions || 0).toString()],
+        ['Average Transaction:', `$${(stats.averageTransaction || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`]
+      ];
+
+      // Calculate better column layout
+      const availableWidth = doc.page.width - (2 * this.pageMargin);
+      const labelWidth = availableWidth * 0.4;
+
+      summaryData.forEach(([label, value]) => {
+        doc.fontSize(10)
+           .fillColor(this.colors.text)
+           .font('Helvetica')
+           .text(label, this.pageMargin, yPosition, { width: labelWidth })
+           .font('Helvetica-Bold')
+           .text(value, this.pageMargin + labelWidth + 10, yPosition);
+        yPosition += 18;
+      });
+
+      return yPosition + 20;
+    } catch (error) {
+      console.error('Error adding stats summary:', error);
+      return yPosition + 100;
+    }
   }
 
   addTransactionsTable(doc, transactions, yPosition, options) {
-    doc.fontSize(16)
-       .fillColor(this.colors.text)
-       .font('Helvetica-Bold')
-       .text('Transactions', this.pageMargin, yPosition);
-
-    yPosition += 25;
-
-    // Calculate available width and distribute columns properly
-    const availableWidth = doc.page.width - (2 * this.pageMargin);
-    const columnSpacing = 8;
-    const totalSpacing = columnSpacing * 9; // 10 columns = 9 spaces
-    
-    // Define column widths as percentages of available space
-    const columnPercentages = [8, 12, 8, 10, 6, 6, 8, 32, 6, 8]; // Must sum to 100
-    const columnWidths = columnPercentages.map(percent => 
-      Math.floor((availableWidth - totalSpacing) * percent / 100)
-    );
-
-    // Table Headers
-    const headers = ['Date', 'Transaction ID', 'Sales Tax', 'Amount', 'Job #', 'Cost Code', 'Category', 'Description', 'Receipt Status', 'User'];
-    let xPosition = this.pageMargin;
-
-    doc.fontSize(9)
-       .fillColor(this.colors.text)
-       .font('Helvetica-Bold');
-
-    headers.forEach((header, index) => {
-      doc.text(header, xPosition, yPosition, { 
-        width: columnWidths[index],
-        align: 'left'
-      });
-      xPosition += columnWidths[index] + columnSpacing;
-    });
-
-    yPosition += 20;
-
-    // Header Line
-    doc.strokeColor(this.colors.lightText)
-       .lineWidth(1)
-       .moveTo(this.pageMargin, yPosition)
-       .lineTo(doc.page.width - this.pageMargin, yPosition)
-       .stroke();
-
-    yPosition += 10;
-
-    // Table Rows
-    doc.font('Helvetica')
-       .fontSize(7);
-
-    transactions.slice(0, 50).forEach(transaction => { // Limit to first 50
-      if (yPosition > doc.page.height - 100) {
-        doc.addPage();
-        yPosition = this.pageMargin;
+    try {
+      if (!Array.isArray(transactions)) {
+        console.warn('Transactions is not an array, skipping table');
+        return yPosition;
       }
 
-      xPosition = this.pageMargin;
-      
-      // Format data with proper truncation
-      const rowData = [
-        moment(transaction.transaction_date).format('MM/DD/YY'),
-        (transaction.external_transaction_id || 'N/A').substring(0, 12),
-        transaction.sales_tax ? `$${parseFloat(transaction.sales_tax).toFixed(2)}` : 'N/A',
-        `$${parseFloat(transaction.amount).toFixed(2)}`,
-        (transaction.job_number_name || 'N/A').substring(0, 8),
-        (transaction.cost_code_name || 'N/A').substring(0, 8),
-        (transaction.category_name || 'N/A').substring(0, 10),
-        (transaction.description || 'N/A').substring(0, 50),
-        transaction.receipt_count > 0 ? 'Matched' : 'Unmatched',
-        this.formatUserName(transaction.user_name || 'N/A')
-      ];
+      doc.fontSize(16)
+         .fillColor(this.colors.text)
+         .font('Helvetica-Bold')
+         .text('Transactions', this.pageMargin, yPosition);
 
-      rowData.forEach((data, index) => {
-        const color = index === 8 ? (data === 'Matched' ? this.colors.accent : this.colors.danger) : this.colors.text;
-        doc.fillColor(color)
-           .text(data, xPosition, yPosition, { 
-             width: columnWidths[index],
-             align: 'left'
-           });
+      yPosition += 25;
+
+      // Calculate available width and distribute columns properly
+      const availableWidth = doc.page.width - (2 * this.pageMargin);
+      const columnSpacing = 8;
+      const totalSpacing = columnSpacing * 9; // 10 columns = 9 spaces
+      
+      // Define column widths as percentages of available space
+      const columnPercentages = [8, 12, 8, 10, 6, 6, 8, 32, 6, 8]; // Must sum to 100
+      const columnWidths = columnPercentages.map(percent => 
+        Math.floor((availableWidth - totalSpacing) * percent / 100)
+      );
+
+      // Table Headers
+      const headers = ['Date', 'Transaction ID', 'Sales Tax', 'Amount', 'Job #', 'Cost Code', 'Category', 'Description', 'Receipt Status', 'User'];
+      let xPosition = this.pageMargin;
+
+      doc.fontSize(9)
+         .fillColor(this.colors.text)
+         .font('Helvetica-Bold');
+
+      headers.forEach((header, index) => {
+        doc.text(header, xPosition, yPosition, { 
+          width: columnWidths[index],
+          align: 'left'
+        });
         xPosition += columnWidths[index] + columnSpacing;
       });
 
-      yPosition += 10;
-    });
+      yPosition += 20;
 
-    if (transactions.length > 50) {
+      // Header Line
+      doc.strokeColor(this.colors.lightText)
+         .lineWidth(1)
+         .moveTo(this.pageMargin, yPosition)
+         .lineTo(doc.page.width - this.pageMargin, yPosition)
+         .stroke();
+
       yPosition += 10;
-      doc.fillColor(this.colors.lightText)
-         .fontSize(10)
-         .text(`... and ${transactions.length - 50} more transactions`, this.pageMargin, yPosition);
-      yPosition += 15;
+
+      // Table Rows
+      doc.font('Helvetica')
+         .fontSize(7);
+
+      transactions.slice(0, 50).forEach(transaction => { // Limit to first 50
+        if (yPosition > doc.page.height - 100) {
+          doc.addPage();
+          yPosition = this.pageMargin;
+        }
+
+        xPosition = this.pageMargin;
+        
+        // Format data with proper truncation and null checks
+        const rowData = [
+          transaction.transaction_date ? moment(transaction.transaction_date).format('MM/DD/YY') : 'N/A',
+          (transaction.external_transaction_id || 'N/A').toString().substring(0, 12),
+          transaction.sales_tax ? `$${parseFloat(transaction.sales_tax).toFixed(2)}` : 'N/A',
+          transaction.amount ? `$${parseFloat(transaction.amount).toFixed(2)}` : '$0.00',
+          (transaction.job_number_name || 'N/A').toString().substring(0, 8),
+          (transaction.cost_code_name || 'N/A').toString().substring(0, 8),
+          (transaction.category_name || 'N/A').toString().substring(0, 10),
+          (transaction.description || 'N/A').toString().substring(0, 50),
+          (transaction.receipt_count || 0) > 0 ? 'Matched' : 'Unmatched',
+          this.formatUserName(transaction.user_name || 'N/A')
+        ];
+
+        rowData.forEach((data, index) => {
+          const color = index === 8 ? (data === 'Matched' ? this.colors.accent : this.colors.danger) : this.colors.text;
+          doc.fillColor(color)
+             .text(data, xPosition, yPosition, { 
+               width: columnWidths[index],
+               align: 'left'
+             });
+          xPosition += columnWidths[index] + columnSpacing;
+        });
+
+        yPosition += 10;
+      });
+
+      if (transactions.length > 50) {
+        yPosition += 10;
+        doc.fillColor(this.colors.lightText)
+           .fontSize(10)
+           .text(`... and ${transactions.length - 50} more transactions`, this.pageMargin, yPosition);
+        yPosition += 15;
+      }
+
+      return yPosition + 20;
+    } catch (error) {
+      console.error('Error adding transactions table:', error);
+      return yPosition + 50;
     }
-
-    return yPosition + 20;
   }
 
   addReceiptGroup(doc, groupKey, receipts, yPosition) {
-    if (yPosition > doc.page.height - 150) {
-      doc.addPage();
-      yPosition = this.pageMargin;
-    }
+    try {
+      if (!Array.isArray(receipts)) {
+        console.warn('Receipts is not an array, skipping group');
+        return yPosition;
+      }
 
-    doc.fontSize(14)
-       .fillColor(this.colors.primary)
-       .font('Helvetica-Bold')
-       .text(groupKey, this.pageMargin, yPosition);
-
-    yPosition += 25;
-
-    receipts.forEach(receipt => {
-      // Start new page if we don't have enough space for receipt + image
-      if (yPosition > doc.page.height - 400) {
+      if (yPosition > doc.page.height - 150) {
         doc.addPage();
         yPosition = this.pageMargin;
       }
 
-      // Receipt header
-      doc.fontSize(11)
-         .fillColor(this.colors.text)
+      const sanitizedGroupKey = String(groupKey || 'Unknown Group').substring(0, 100);
+
+      doc.fontSize(14)
+         .fillColor(this.colors.primary)
          .font('Helvetica-Bold')
-         .text(receipt.original_filename, this.pageMargin + 20, yPosition);
+         .text(sanitizedGroupKey, this.pageMargin, yPosition);
 
-      yPosition += 15;
+      yPosition += 25;
 
-      // Receipt details
-      // Format date safely
-      const dateFormats = ['MM/DD/YYYY', 'MM/DD/YY', 'M/D/YYYY', 'M/D/YY', 'YYYY-MM-DD'];
-      const receiptDate = moment(receipt.extracted_date, dateFormats);
-      const formattedDate = receiptDate.isValid() ? receiptDate.format('MM/DD/YYYY') : receipt.extracted_date || 'Unknown';
+      receipts.forEach(receipt => {
+        // Start new page if we don't have enough space for receipt + image
+        if (yPosition > doc.page.height - 400) {
+          doc.addPage();
+          yPosition = this.pageMargin;
+        }
 
-      const details = [
-        `Date: ${formattedDate}`,
-        `Amount: $${parseFloat(receipt.extracted_amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
-        `Merchant: ${receipt.extracted_merchant || 'Unknown'}`,
-        `Status: ${receipt.match_status || 'Unmatched'}`
-      ];
+        // Receipt header
+        const filename = String(receipt.original_filename || 'Unknown File').substring(0, 100);
+        doc.fontSize(11)
+           .fillColor(this.colors.text)
+           .font('Helvetica-Bold')
+           .text(filename, this.pageMargin + 20, yPosition);
 
-      doc.fontSize(9)
-         .fillColor(this.colors.lightText)
-         .font('Helvetica');
+        yPosition += 15;
 
-      details.forEach(detail => {
-        doc.text(detail, this.pageMargin + 30, yPosition);
-        yPosition += 12;
+        // Receipt details with safe parsing
+        const dateFormats = ['MM/DD/YYYY', 'MM/DD/YY', 'M/D/YYYY', 'M/D/YY', 'YYYY-MM-DD'];
+        const receiptDate = moment(receipt.extracted_date, dateFormats);
+        const formattedDate = receiptDate.isValid() ? receiptDate.format('MM/DD/YYYY') : receipt.extracted_date || 'Unknown';
+
+        const amount = parseFloat(receipt.extracted_amount || 0);
+        const formattedAmount = isNaN(amount) ? '0.00' : amount.toLocaleString('en-US', { minimumFractionDigits: 2 });
+
+        const details = [
+          `Date: ${formattedDate}`,
+          `Amount: $${formattedAmount}`,
+          `Merchant: ${receipt.extracted_merchant || 'Unknown'}`,
+          `Status: ${receipt.match_status || 'Unmatched'}`
+        ];
+
+        doc.fontSize(9)
+           .fillColor(this.colors.lightText)
+           .font('Helvetica');
+
+        details.forEach(detail => {
+          doc.text(detail, this.pageMargin + 30, yPosition);
+          yPosition += 12;
+        });
+
+        yPosition += 10;
+
+        // Add receipt image
+        yPosition = this.addReceiptImage(doc, receipt, yPosition);
       });
 
-      yPosition += 10;
-
-      // Add receipt image
-      yPosition = this.addReceiptImage(doc, receipt, yPosition);
-    });
-
-    return yPosition + 15;
+      return yPosition + 15;
+    } catch (error) {
+      console.error('Error adding receipt group:', error);
+      return yPosition + 50;
+    }
   }
 
   addReceiptImage(doc, receipt, yPosition) {
@@ -612,7 +694,7 @@ class PDFService {
       }
 
       // Get file extension to determine type
-      const fileExt = path.extname(receipt.original_filename).toLowerCase();
+      const fileExt = path.extname(receipt.original_filename || '').toLowerCase();
       const imageExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.bmp'];
       
       if (imageExtensions.includes(fileExt)) {
@@ -694,350 +776,438 @@ class PDFService {
   }
 
   addKeyMetrics(doc, analytics, yPosition) {
-    doc.fontSize(16)
-       .fillColor(this.colors.text)
-       .font('Helvetica-Bold')
-       .text('Key Metrics', this.pageMargin, yPosition);
-
-    yPosition += 25;
-
-    const metrics = [
-      ['Total Expenses:', `$${analytics.totalExpenses?.toLocaleString('en-US', { minimumFractionDigits: 2 }) || '0.00'}`],
-      ['Number of Transactions:', (analytics.transactionCount || 0).toLocaleString()],
-      ['Number of Receipts:', (analytics.receiptCount || 0).toLocaleString()],
-      ['Match Rate:', `${analytics.matchRate || 0}%`],
-      ['Average Transaction:', `$${analytics.averageTransaction?.toLocaleString('en-US', { minimumFractionDigits: 2 }) || '0.00'}`],
-      ['Most Expensive:', `$${analytics.highestTransaction?.toLocaleString('en-US', { minimumFractionDigits: 2 }) || '0.00'}`]
-    ];
-
-    // Calculate better column layout
-    const availableWidth = doc.page.width - (2 * this.pageMargin);
-    const labelWidth = availableWidth * 0.4;
-    const valueWidth = availableWidth * 0.5;
-    const colWidth = availableWidth / 2;
-    let col = 0;
-
-    metrics.forEach(([label, value], index) => {
-      const xPos = this.pageMargin + (col * colWidth);
-      
-      doc.fontSize(10)
+    try {
+      doc.fontSize(16)
          .fillColor(this.colors.text)
-         .font('Helvetica')
-         .text(label, xPos, yPosition, { width: labelWidth })
          .font('Helvetica-Bold')
-         .text(value, xPos + labelWidth + 10, yPosition, { width: valueWidth });
+         .text('Key Metrics', this.pageMargin, yPosition);
 
-      if (index % 2 === 1) {
-        yPosition += 18;
-        col = 0;
-      } else {
-        col = 1;
-      }
-    });
+      yPosition += 25;
 
-    return yPosition + 30;
+      const metrics = [
+        ['Total Expenses:', `$${(analytics.totalExpenses || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`],
+        ['Number of Transactions:', (analytics.transactionCount || 0).toLocaleString()],
+        ['Number of Receipts:', (analytics.receiptCount || 0).toLocaleString()],
+        ['Match Rate:', `${analytics.matchRate || 0}%`],
+        ['Average Transaction:', `$${(analytics.averageTransaction || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`],
+        ['Most Expensive:', `$${(analytics.highestTransaction || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`]
+      ];
+
+      // Calculate better column layout
+      const availableWidth = doc.page.width - (2 * this.pageMargin);
+      const labelWidth = availableWidth * 0.4;
+      const colWidth = availableWidth / 2;
+      let col = 0;
+
+      metrics.forEach(([label, value], index) => {
+        const xPos = this.pageMargin + (col * colWidth);
+        
+        doc.fontSize(10)
+           .fillColor(this.colors.text)
+           .font('Helvetica')
+           .text(label, xPos, yPosition, { width: labelWidth })
+           .font('Helvetica-Bold')
+           .text(value, xPos + labelWidth + 10, yPosition);
+
+        if (index % 2 === 1) {
+          yPosition += 18;
+          col = 0;
+        } else {
+          col = 1;
+        }
+      });
+
+      return yPosition + 30;
+    } catch (error) {
+      console.error('Error adding key metrics:', error);
+      return yPosition + 100;
+    }
   }
 
   addFooter(doc) {
-    const footerY = doc.page.height - 50;
-    doc.fontSize(8)
-       .fillColor(this.colors.lightText)
-       .text(`Generated by Expense Receipt Matcher • Page ${doc.bufferedPageRange().count}`, 
-             this.pageMargin, footerY, { align: 'center' });
+    try {
+      const footerY = doc.page.height - 50;
+      doc.fontSize(8)
+         .fillColor(this.colors.lightText)
+         .text(`Generated by Expense Receipt Matcher • Page ${doc.bufferedPageRange().count}`, 
+               this.pageMargin, footerY, { align: 'center' });
+    } catch (error) {
+      console.error('Error adding footer:', error);
+    }
   }
 
   formatUserName(userName) {
-    if (!userName || userName === 'N/A') return 'N/A';
-    
-    // Split the name into parts
-    const nameParts = userName.trim().split(' ');
-    
-    if (nameParts.length === 1) {
-      // Single name - truncate if too long
-      return nameParts[0].substring(0, 12);
-    } else if (nameParts.length === 2) {
-      // First and last name - use initials for first name if needed
-      const firstName = nameParts[0];
-      const lastName = nameParts[1];
+    try {
+      if (!userName || userName === 'N/A') return 'N/A';
       
-      if (firstName.length <= 3) {
-        // Short first name - use full first name + truncated last name
-        return `${firstName} ${lastName.substring(0, 8)}`;
+      // Split the name into parts
+      const nameParts = String(userName).trim().split(' ');
+      
+      if (nameParts.length === 1) {
+        // Single name - truncate if too long
+        return nameParts[0].substring(0, 12);
+      } else if (nameParts.length === 2) {
+        // First and last name - use initials for first name if needed
+        const firstName = nameParts[0];
+        const lastName = nameParts[1];
+        
+        if (firstName.length <= 3) {
+          // Short first name - use full first name + truncated last name
+          return `${firstName} ${lastName.substring(0, 8)}`;
+        } else {
+          // Long first name - use initial + last name
+          return `${firstName.charAt(0)}. ${lastName.substring(0, 8)}`;
+        }
       } else {
-        // Long first name - use initial + last name
+        // Multiple names - use first initial + last name
+        const firstName = nameParts[0];
+        const lastName = nameParts[nameParts.length - 1];
         return `${firstName.charAt(0)}. ${lastName.substring(0, 8)}`;
       }
-    } else {
-      // Multiple names - use first initial + last name
-      const firstName = nameParts[0];
-      const lastName = nameParts[nameParts.length - 1];
-      return `${firstName.charAt(0)}. ${lastName.substring(0, 8)}`;
+    } catch (error) {
+      console.error('Error formatting user name:', error);
+      return 'N/A';
     }
   }
 
   calculateTransactionStats(transactions) {
-    const total = transactions.length;
-    const totalAmount = transactions.reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
-    const matched = transactions.filter(t => t.receipt_count > 0).length;
-    
-    return {
-      totalTransactions: total,
-      totalAmount,
-      matchedTransactions: matched,
-      unmatchedTransactions: total - matched,
-      matchPercentage: total > 0 ? Math.round((matched / total) * 100) : 0,
-      averageTransaction: total > 0 ? totalAmount / total : 0
-    };
+    try {
+      if (!Array.isArray(transactions)) {
+        return {
+          totalTransactions: 0,
+          totalAmount: 0,
+          matchedTransactions: 0,
+          unmatchedTransactions: 0,
+          matchPercentage: 0,
+          averageTransaction: 0
+        };
+      }
+
+      const total = transactions.length;
+      const totalAmount = transactions.reduce((sum, t) => {
+        const amount = parseFloat(t.amount || 0);
+        return sum + (isNaN(amount) ? 0 : amount);
+      }, 0);
+      const matched = transactions.filter(t => (t.receipt_count || 0) > 0).length;
+      
+      return {
+        totalTransactions: total,
+        totalAmount,
+        matchedTransactions: matched,
+        unmatchedTransactions: total - matched,
+        matchPercentage: total > 0 ? Math.round((matched / total) * 100) : 0,
+        averageTransaction: total > 0 ? totalAmount / total : 0
+      };
+    } catch (error) {
+      console.error('Error calculating transaction stats:', error);
+      return {
+        totalTransactions: 0,
+        totalAmount: 0,
+        matchedTransactions: 0,
+        unmatchedTransactions: 0,
+        matchPercentage: 0,
+        averageTransaction: 0
+      };
+    }
   }
 
   groupReceipts(receipts, groupBy) {
-    const groups = {};
-    
-    receipts.forEach(receipt => {
-      let key;
-      switch (groupBy) {
-        case 'date':
-          // Parse date with proper format (MM/DD/YYYY)
-          const dateFormats = ['MM/DD/YYYY', 'MM/DD/YY', 'M/D/YYYY', 'M/D/YY', 'YYYY-MM-DD'];
-          const receiptDate = moment(receipt.extracted_date, dateFormats);
-          key = receiptDate.isValid() ? receiptDate.format('MMMM YYYY') : 'Unknown Date';
-          break;
-        case 'merchant':
-          key = receipt.extracted_merchant || 'Unknown Merchant';
-          break;
-        case 'amount':
-          const amount = parseFloat(receipt.extracted_amount || 0);
-          if (amount < 25) key = 'Under $25';
-          else if (amount < 100) key = '$25 - $100';
-          else if (amount < 500) key = '$100 - $500';
-          else key = 'Over $500';
-          break;
-        default:
-          key = 'All Receipts';
+    try {
+      if (!Array.isArray(receipts)) {
+        return {};
       }
-      
-      if (!groups[key]) groups[key] = [];
-      groups[key].push(receipt);
-    });
 
-    return groups;
+      const groups = {};
+      
+      receipts.forEach(receipt => {
+        let key;
+        switch (groupBy) {
+          case 'date':
+            // Parse date with proper format (MM/DD/YYYY)
+            const dateFormats = ['MM/DD/YYYY', 'MM/DD/YY', 'M/D/YYYY', 'M/D/YY', 'YYYY-MM-DD'];
+            const receiptDate = moment(receipt.extracted_date, dateFormats);
+            key = receiptDate.isValid() ? receiptDate.format('MMMM YYYY') : 'Unknown Date';
+            break;
+          case 'merchant':
+            key = receipt.extracted_merchant || 'Unknown Merchant';
+            break;
+          case 'amount':
+            const amount = parseFloat(receipt.extracted_amount || 0);
+            if (isNaN(amount)) key = 'Unknown Amount';
+            else if (amount < 25) key = 'Under $25';
+            else if (amount < 100) key = '$25 - $100';
+            else if (amount < 500) key = '$100 - $500';
+            else key = 'Over $500';
+            break;
+          default:
+            key = 'All Receipts';
+        }
+        
+        if (!groups[key]) groups[key] = [];
+        groups[key].push(receipt);
+      });
+
+      return groups;
+    } catch (error) {
+      console.error('Error grouping receipts:', error);
+      return {};
+    }
   }
 
   addCategoryBreakdown(doc, categories, yPosition) {
-    if (!categories || categories.length === 0) return yPosition;
+    try {
+      if (!Array.isArray(categories) || categories.length === 0) return yPosition;
 
-    doc.fontSize(16)
-       .fillColor(this.colors.text)
-       .font('Helvetica-Bold')
-       .text('Category Breakdown', this.pageMargin, yPosition);
+      doc.fontSize(16)
+         .fillColor(this.colors.text)
+         .font('Helvetica-Bold')
+         .text('Category Breakdown', this.pageMargin, yPosition);
 
-    yPosition += 25;
+      yPosition += 25;
 
-    // Calculate column widths for better formatting
-    const availableWidth = doc.page.width - (2 * this.pageMargin);
-    const categoryWidth = availableWidth * 0.5;
-    const amountWidth = availableWidth * 0.25;
-    const percentageWidth = availableWidth * 0.2;
+      // Calculate column widths for better formatting
+      const availableWidth = doc.page.width - (2 * this.pageMargin);
+      const categoryWidth = availableWidth * 0.5;
+      const amountWidth = availableWidth * 0.25;
+      const percentageWidth = availableWidth * 0.2;
 
-    // Add headers
-    doc.fontSize(10)
-       .fillColor(this.colors.text)
-       .font('Helvetica-Bold')
-       .text('Category', this.pageMargin, yPosition, { width: categoryWidth })
-       .text('Amount', this.pageMargin + categoryWidth + 10, yPosition, { width: amountWidth })
-       .text('Percentage', this.pageMargin + categoryWidth + amountWidth + 20, yPosition, { width: percentageWidth });
-
-    yPosition += 15;
-
-    // Header line
-    doc.strokeColor(this.colors.lightText)
-       .lineWidth(1)
-       .moveTo(this.pageMargin, yPosition)
-       .lineTo(doc.page.width - this.pageMargin, yPosition)
-       .stroke();
-
-    yPosition += 10;
-
-    categories.forEach(category => {
+      // Add headers
       doc.fontSize(10)
          .fillColor(this.colors.text)
-         .font('Helvetica')
-         .text(category.name.substring(0, 40), this.pageMargin, yPosition, { width: categoryWidth })
-         .text(`$${category.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, this.pageMargin + categoryWidth + 10, yPosition, { width: amountWidth })
-         .text(`${category.percentage}%`, this.pageMargin + categoryWidth + amountWidth + 20, yPosition, { width: percentageWidth });
-      yPosition += 15;
-    });
+         .font('Helvetica-Bold')
+         .text('Category', this.pageMargin, yPosition, { width: categoryWidth })
+         .text('Amount', this.pageMargin + categoryWidth + 10, yPosition, { width: amountWidth })
+         .text('Percentage', this.pageMargin + categoryWidth + amountWidth + 20, yPosition, { width: percentageWidth });
 
-    return yPosition + 20;
+      yPosition += 15;
+
+      // Header line
+      doc.strokeColor(this.colors.lightText)
+         .lineWidth(1)
+         .moveTo(this.pageMargin, yPosition)
+         .lineTo(doc.page.width - this.pageMargin, yPosition)
+         .stroke();
+
+      yPosition += 10;
+
+      categories.forEach(category => {
+        const amount = parseFloat(category.amount || 0);
+        const percentage = parseInt(category.percentage || 0);
+        
+        doc.fontSize(10)
+           .fillColor(this.colors.text)
+           .font('Helvetica')
+           .text((category.name || 'Unknown').substring(0, 40), this.pageMargin, yPosition, { width: categoryWidth })
+           .text(`$${amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, this.pageMargin + categoryWidth + 10, yPosition, { width: amountWidth })
+           .text(`${percentage}%`, this.pageMargin + categoryWidth + amountWidth + 20, yPosition, { width: percentageWidth });
+        yPosition += 15;
+      });
+
+      return yPosition + 20;
+    } catch (error) {
+      console.error('Error adding category breakdown:', error);
+      return yPosition + 50;
+    }
   }
 
   addTrendsChart(doc, trends, yPosition) {
-    if (!trends || trends.length === 0) return yPosition;
+    try {
+      if (!Array.isArray(trends) || trends.length === 0) return yPosition;
 
-    doc.fontSize(16)
-       .fillColor(this.colors.text)
-       .font('Helvetica-Bold')
-       .text('Monthly Trends', this.pageMargin, yPosition);
+      doc.fontSize(16)
+         .fillColor(this.colors.text)
+         .font('Helvetica-Bold')
+         .text('Monthly Trends', this.pageMargin, yPosition);
 
-    yPosition += 25;
+      yPosition += 25;
 
-    // Calculate column widths for better formatting
-    const availableWidth = doc.page.width - (2 * this.pageMargin);
-    const monthWidth = availableWidth * 0.4;
-    const amountWidth = availableWidth * 0.5;
+      // Calculate column widths for better formatting
+      const availableWidth = doc.page.width - (2 * this.pageMargin);
+      const monthWidth = availableWidth * 0.4;
+      const amountWidth = availableWidth * 0.5;
 
-    // Add headers
-    doc.fontSize(10)
-       .fillColor(this.colors.text)
-       .font('Helvetica-Bold')
-       .text('Month', this.pageMargin, yPosition, { width: monthWidth })
-       .text('Amount', this.pageMargin + monthWidth + 10, yPosition, { width: amountWidth });
-
-    yPosition += 15;
-
-    // Header line
-    doc.strokeColor(this.colors.lightText)
-       .lineWidth(1)
-       .moveTo(this.pageMargin, yPosition)
-       .lineTo(doc.page.width - this.pageMargin, yPosition)
-       .stroke();
-
-    yPosition += 10;
-
-    trends.forEach(trend => {
+      // Add headers
       doc.fontSize(10)
          .fillColor(this.colors.text)
-         .font('Helvetica')
-         .text(trend.month, this.pageMargin, yPosition, { width: monthWidth })
-         .text(`$${trend.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, this.pageMargin + monthWidth + 10, yPosition, { width: amountWidth });
-      yPosition += 12;
-    });
+         .font('Helvetica-Bold')
+         .text('Month', this.pageMargin, yPosition, { width: monthWidth })
+         .text('Amount', this.pageMargin + monthWidth + 10, yPosition, { width: amountWidth });
 
-    return yPosition + 20;
+      yPosition += 15;
+
+      // Header line
+      doc.strokeColor(this.colors.lightText)
+         .lineWidth(1)
+         .moveTo(this.pageMargin, yPosition)
+         .lineTo(doc.page.width - this.pageMargin, yPosition)
+         .stroke();
+
+      yPosition += 10;
+
+      trends.forEach(trend => {
+        const amount = parseFloat(trend.amount || 0);
+        doc.fontSize(10)
+           .fillColor(this.colors.text)
+           .font('Helvetica')
+           .text(trend.month || 'Unknown', this.pageMargin, yPosition, { width: monthWidth })
+           .text(`$${amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, this.pageMargin + monthWidth + 10, yPosition, { width: amountWidth });
+        yPosition += 12;
+      });
+
+      return yPosition + 20;
+    } catch (error) {
+      console.error('Error adding trends chart:', error);
+      return yPosition + 50;
+    }
   }
 
   addRecommendations(doc, recommendations, yPosition) {
-    if (!recommendations || recommendations.length === 0) return yPosition;
+    try {
+      if (!Array.isArray(recommendations) || recommendations.length === 0) return yPosition;
 
-    doc.fontSize(16)
-       .fillColor(this.colors.text)
-       .font('Helvetica-Bold')
-       .text('Recommendations', this.pageMargin, yPosition);
-
-    yPosition += 25;
-
-    recommendations.forEach((rec, index) => {
-      doc.fontSize(10)
+      doc.fontSize(16)
          .fillColor(this.colors.text)
-         .font('Helvetica')
-         .text(`${index + 1}. ${rec}`, this.pageMargin, yPosition, { 
-           width: doc.page.width - 2 * this.pageMargin 
-         });
-      yPosition += 25;
-    });
+         .font('Helvetica-Bold')
+         .text('Recommendations', this.pageMargin, yPosition);
 
-    return yPosition + 20;
+      yPosition += 25;
+
+      recommendations.forEach((rec, index) => {
+        doc.fontSize(10)
+           .fillColor(this.colors.text)
+           .font('Helvetica')
+           .text(`${index + 1}. ${rec}`, this.pageMargin, yPosition, { 
+             width: doc.page.width - 2 * this.pageMargin 
+           });
+        yPosition += 25;
+      });
+
+      return yPosition + 20;
+    } catch (error) {
+      console.error('Error adding recommendations:', error);
+      return yPosition + 50;
+    }
   }
 
   addReconciliationSummary(doc, data, yPosition) {
-    doc.fontSize(16)
-       .fillColor(this.colors.text)
-       .font('Helvetica-Bold')
-       .text('Reconciliation Summary', this.pageMargin, yPosition);
-
-    yPosition += 25;
-
-    const summary = [
-      ['Total Matches:', data.matched?.length || 0],
-      ['Unmatched Transactions:', data.unmatchedTransactions?.length || 0],
-      ['Unmatched Receipts:', data.unmatchedReceipts?.length || 0],
-      ['Match Rate:', `${data.matchRate || 0}%`]
-    ];
-
-    // Calculate better column layout
-    const availableWidth = doc.page.width - (2 * this.pageMargin);
-    const labelWidth = availableWidth * 0.4;
-    const valueWidth = availableWidth * 0.3;
-
-    summary.forEach(([label, value]) => {
-      doc.fontSize(10)
+    try {
+      doc.fontSize(16)
          .fillColor(this.colors.text)
-         .font('Helvetica')
-         .text(label, this.pageMargin, yPosition, { width: labelWidth })
          .font('Helvetica-Bold')
-         .text(value.toString(), this.pageMargin + labelWidth + 10, yPosition, { width: valueWidth });
-      yPosition += 18;
-    });
+         .text('Reconciliation Summary', this.pageMargin, yPosition);
 
-    return yPosition + 20;
+      yPosition += 25;
+
+      const summary = [
+        ['Total Matches:', (data.matched?.length || 0).toString()],
+        ['Unmatched Transactions:', (data.unmatchedTransactions?.length || 0).toString()],
+        ['Unmatched Receipts:', (data.unmatchedReceipts?.length || 0).toString()],
+        ['Match Rate:', `${data.matchRate || 0}%`]
+      ];
+
+      // Calculate better column layout
+      const availableWidth = doc.page.width - (2 * this.pageMargin);
+      const labelWidth = availableWidth * 0.4;
+
+      summary.forEach(([label, value]) => {
+        doc.fontSize(10)
+           .fillColor(this.colors.text)
+           .font('Helvetica')
+           .text(label, this.pageMargin, yPosition, { width: labelWidth })
+           .font('Helvetica-Bold')
+           .text(value, this.pageMargin + labelWidth + 10, yPosition);
+        yPosition += 18;
+      });
+
+      return yPosition + 20;
+    } catch (error) {
+      console.error('Error adding reconciliation summary:', error);
+      return yPosition + 100;
+    }
   }
 
   addMatchedItems(doc, matches, yPosition) {
-    if (!matches || matches.length === 0) return yPosition;
+    try {
+      if (!Array.isArray(matches) || matches.length === 0) return yPosition;
 
-    doc.fontSize(14)
-       .fillColor(this.colors.accent)
-       .font('Helvetica-Bold')
-       .text('Matched Items', this.pageMargin, yPosition);
-
-    yPosition += 20;
-
-    matches.slice(0, 20).forEach(match => {
-      if (yPosition > doc.page.height - 80) {
-        doc.addPage();
-        yPosition = this.pageMargin;
-      }
-
-      doc.fontSize(10)
-         .fillColor(this.colors.text)
+      doc.fontSize(14)
+         .fillColor(this.colors.accent)
          .font('Helvetica-Bold')
-         .text(`${match.transaction_description} - $${parseFloat(match.amount).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, 
-               this.pageMargin, yPosition);
-      
-      yPosition += 12;
-      
-      doc.fontSize(9)
-         .fillColor(this.colors.lightText)
-         .font('Helvetica')
-         .text(`Receipt: ${match.receipt_filename} (${match.match_confidence}% confidence)`, 
-               this.pageMargin + 10, yPosition);
-      
-      yPosition += 20;
-    });
+         .text('Matched Items', this.pageMargin, yPosition);
 
-    return yPosition + 10;
+      yPosition += 20;
+
+      matches.slice(0, 20).forEach(match => {
+        if (yPosition > doc.page.height - 80) {
+          doc.addPage();
+          yPosition = this.pageMargin;
+        }
+
+        const amount = parseFloat(match.amount || 0);
+        const description = String(match.transaction_description || 'Unknown').substring(0, 50);
+        
+        doc.fontSize(10)
+           .fillColor(this.colors.text)
+           .font('Helvetica-Bold')
+           .text(`${description} - $${amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, 
+                 this.pageMargin, yPosition);
+        
+        yPosition += 12;
+        
+        const confidence = parseInt(match.match_confidence || 0);
+        const filename = String(match.receipt_filename || 'Unknown').substring(0, 50);
+        
+        doc.fontSize(9)
+           .fillColor(this.colors.lightText)
+           .font('Helvetica')
+           .text(`Receipt: ${filename} (${confidence}% confidence)`, 
+                 this.pageMargin + 10, yPosition);
+        
+        yPosition += 20;
+      });
+
+      return yPosition + 10;
+    } catch (error) {
+      console.error('Error adding matched items:', error);
+      return yPosition + 50;
+    }
   }
 
   addUnmatchedSection(doc, title, items, yPosition) {
-    if (!items || items.length === 0) return yPosition;
+    try {
+      if (!Array.isArray(items) || items.length === 0) return yPosition;
 
-    doc.fontSize(14)
-       .fillColor(this.colors.danger)
-       .font('Helvetica-Bold')
-       .text(title, this.pageMargin, yPosition);
+      doc.fontSize(14)
+         .fillColor(this.colors.danger)
+         .font('Helvetica-Bold')
+         .text(title, this.pageMargin, yPosition);
 
-    yPosition += 20;
+      yPosition += 20;
 
-    items.slice(0, 15).forEach(item => {
-      if (yPosition > doc.page.height - 60) {
-        doc.addPage();
-        yPosition = this.pageMargin;
-      }
+      items.slice(0, 15).forEach(item => {
+        if (yPosition > doc.page.height - 60) {
+          doc.addPage();
+          yPosition = this.pageMargin;
+        }
 
-      const description = item.description || item.original_filename || 'Unknown';
-      const amount = parseFloat(item.amount || item.extracted_amount || 0);
-      
-      doc.fontSize(10)
-         .fillColor(this.colors.text)
-         .font('Helvetica')
-         .text(`${description} - $${amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, 
-               this.pageMargin, yPosition);
-      
-      yPosition += 15;
-    });
+        const description = String(item.description || item.original_filename || 'Unknown').substring(0, 50);
+        const amount = parseFloat(item.amount || item.extracted_amount || 0);
+        
+        doc.fontSize(10)
+           .fillColor(this.colors.text)
+           .font('Helvetica')
+           .text(`${description} - $${amount.toLocaleString('en-US', { minimumFractionDigits: 2 })}`, 
+                 this.pageMargin, yPosition);
+        
+        yPosition += 15;
+      });
 
-    return yPosition + 20;
+      return yPosition + 20;
+    } catch (error) {
+      console.error('Error adding unmatched section:', error);
+      return yPosition + 50;
+    }
   }
 }
 
-module.exports = new PDFService(); 
+module.exports = new PDFService();

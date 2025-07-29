@@ -8,6 +8,7 @@ import './styles/auth.css';
 // Authentication
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import ErrorBoundary from './components/ErrorBoundary';
 import Auth from './pages/Auth';
 
 // Components
@@ -24,50 +25,54 @@ import MasterDataSettings from './pages/MasterDataSettings';
 
 function App() {
   return (
-    <AuthProvider>
-      <div className="App">
-        <Routes>
-          {/* Public Routes */}
-          <Route path="/auth" element={<Auth />} />
+    <ErrorBoundary>
+      <AuthProvider>
+        <div className="App">
+          <Routes>
+            {/* Public Routes */}
+            <Route path="/auth" element={<Auth />} />
+            
+            {/* Protected Routes */}
+            <Route path="/*" element={
+              <ProtectedRoute>
+                <ErrorBoundary>
+                  <div className="authenticated-app">
+                    <Navbar />
+                    <main className="main-content">
+                      <Routes>
+                        <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                        <Route path="/dashboard" element={<Dashboard />} />
+                        <Route path="/transactions" element={<Transactions />} />
+                        <Route path="/receipts" element={<Receipts />} />
+                        <Route path="/matches" element={<Matches />} />
+                        <Route path="/import" element={<ImportTransactions />} />
+                        <Route path="/exports" element={<Exports />} />
+                        <Route path="/profile" element={<Profile />} />
+                        <Route path="/company-settings" element={<CompanySettings />} />
+                        <Route path="/master-data-settings" element={<MasterDataSettings />} />
+                      </Routes>
+                    </main>
+                  </div>
+                </ErrorBoundary>
+              </ProtectedRoute>
+            } />
+          </Routes>
           
-          {/* Protected Routes */}
-          <Route path="/*" element={
-            <ProtectedRoute>
-              <div className="authenticated-app">
-                <Navbar />
-                <main className="main-content">
-                  <Routes>
-                    <Route path="/" element={<Navigate to="/dashboard" replace />} />
-                    <Route path="/dashboard" element={<Dashboard />} />
-                    <Route path="/transactions" element={<Transactions />} />
-                    <Route path="/receipts" element={<Receipts />} />
-                    <Route path="/matches" element={<Matches />} />
-                    <Route path="/import" element={<ImportTransactions />} />
-                    <Route path="/exports" element={<Exports />} />
-                    <Route path="/profile" element={<Profile />} />
-                    <Route path="/company-settings" element={<CompanySettings />} />
-                    <Route path="/master-data-settings" element={<MasterDataSettings />} />
-                  </Routes>
-                </main>
-              </div>
-            </ProtectedRoute>
-          } />
-        </Routes>
-        
-        <ToastContainer
-          position="top-right"
-          autoClose={3000}
-          hideProgressBar={false}
-          newestOnTop={false}
-          closeOnClick
-          rtl={false}
-          pauseOnFocusLoss
-          draggable
-          pauseOnHover
-        />
-      </div>
-    </AuthProvider>
+          <ToastContainer
+            position="top-right"
+            autoClose={3000}
+            hideProgressBar={false}
+            newestOnTop={false}
+            closeOnClick
+            rtl={false}
+            pauseOnFocusLoss
+            draggable
+            pauseOnHover
+          />
+        </div>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
 
-export default App; 
+export default App;

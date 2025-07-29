@@ -1,9 +1,24 @@
 const jwt = require('jsonwebtoken');
 const db = require('../database/init');
 
-// JWT Secret - in production this should be in environment variables
-const JWT_SECRET = process.env.JWT_SECRET || 'your-super-secret-jwt-key-change-in-production';
-const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || 'your-super-secret-refresh-key-change-in-production';
+// JWT Secret - require environment variables in production
+const JWT_SECRET = process.env.JWT_SECRET || (() => {
+  if (process.env.NODE_ENV === 'production') {
+    console.error('CRITICAL: JWT_SECRET environment variable is required in production!');
+    process.exit(1);
+  }
+  console.warn('WARNING: Using default JWT_SECRET for development. Set JWT_SECRET environment variable.');
+  return 'dev-jwt-secret-change-in-production-' + Date.now();
+})();
+
+const JWT_REFRESH_SECRET = process.env.JWT_REFRESH_SECRET || (() => {
+  if (process.env.NODE_ENV === 'production') {
+    console.error('CRITICAL: JWT_REFRESH_SECRET environment variable is required in production!');
+    process.exit(1);
+  }
+  console.warn('WARNING: Using default JWT_REFRESH_SECRET for development. Set JWT_REFRESH_SECRET environment variable.');
+  return 'dev-refresh-secret-change-in-production-' + Date.now();
+})();
 
 // Generate JWT tokens
 const generateTokens = (user) => {
@@ -168,4 +183,4 @@ module.exports = {
   refreshAccessToken,
   JWT_SECRET,
   JWT_REFRESH_SECRET
-}; 
+};

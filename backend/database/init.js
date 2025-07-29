@@ -4,13 +4,47 @@ const bcrypt = require('bcryptjs');
 
 const dbPath = path.join(__dirname, 'expense_matcher.db');
 
-// Create database connection
-const db = new sqlite3.Database(dbPath, (err) => {
+// Create database connection with better error handling
+const db = new sqlite3.Database(dbPath, sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE, (err) => {
   if (err) {
     console.error('Error opening database:', err.message);
+    process.exit(1);
   } else {
     console.log('Connected to SQLite database');
+    // Enable foreign key constraints
+    db.run('PRAGMA foreign_keys = ON', (err) => {
+      if (err) {
+        console.error('Error enabling foreign keys:', err.message);
+      } else {
+        console.log('Foreign key constraints enabled');
+      }
+    });
+    
+    // Set journal mode for better performance and reliability
+    db.run('PRAGMA journal_mode = WAL', (err) => {
+      if (err) {
+        console.error('Error setting journal mode:', err.message);
+      }
+    });
   }
+});
+
+// Handle database errors
+db.on('error', (err) => {
+  console.error('Database error:', err);
+});
+
+// Graceful shutdown
+process.on('SIGINT', () => {
+  console.log('Closing database connection...');
+  db.close((err) => {
+    if (err) {
+      console.error('Error closing database:', err.message);
+    } else {
+      console.log('Database connection closed.');
+    }
+    process.exit(0);
+  });
 });
 
 // Default admin user for fresh deployments
@@ -423,4 +457,4 @@ const initDatabase = () => {
 // Initialize database on module load
 initDatabase();
 
-module.exports = db; 
+module.exports = db;

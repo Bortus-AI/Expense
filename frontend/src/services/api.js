@@ -28,13 +28,38 @@ api.interceptors.request.use(
   }
 );
 
-// Response interceptor
+// Response interceptor with better error handling
 api.interceptors.response.use(
   (response) => {
     return response;
   },
   (error) => {
-    console.error('API Error:', error.response?.data || error.message);
+    // Log error details
+    console.error('API Error:', {
+      url: error.config?.url,
+      method: error.config?.method,
+      status: error.response?.status,
+      data: error.response?.data,
+      message: error.message
+    });
+
+    // Handle specific error cases
+    if (error.response?.status === 401) {
+      // Token expired or invalid - redirect to login
+      console.warn('Authentication failed, redirecting to login');
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      window.location.href = '/auth';
+    } else if (error.response?.status === 403) {
+      console.warn('Access forbidden - insufficient permissions');
+    } else if (error.response?.status >= 500) {
+      console.error('Server error occurred');
+    } else if (error.code === 'ECONNABORTED') {
+      console.error('Request timeout');
+    } else if (!error.response) {
+      console.error('Network error - server may be down');
+    }
+
     return Promise.reject(error);
   }
 );
@@ -200,4 +225,4 @@ export const masterDataAPI = {
 
 // Export both as named export and default export
 export { api };
-export default api; 
+export default api;
