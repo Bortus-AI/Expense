@@ -16,18 +16,34 @@ const findOrCreateMasterDataItem = (tableName, name, companyId) => {
       return;
     }
     const trimmedName = name.trim();
+    
+    // First try to find existing item
     db.get(`SELECT id FROM ${tableName} WHERE company_id = ? AND name = ?`, [companyId, trimmedName], (err, row) => {
       if (err) {
         reject(err);
       } else if (row) {
         resolve(row.id);
       } else {
-        // Not found, create it
-        db.run(`INSERT INTO ${tableName} (company_id, name) VALUES (?, ?)`, [companyId, trimmedName], function(err) {
+        // Not found, try to create it with INSERT OR IGNORE to handle race conditions
+        db.run(`INSERT OR IGNORE INTO ${tableName} (company_id, name) VALUES (?, ?)`, [companyId, trimmedName], function(err) {
           if (err) {
             reject(err);
           } else {
-            resolve(this.lastID);
+            // If insert succeeded, get the ID
+            if (this.changes > 0) {
+              resolve(this.lastID);
+            } else {
+              // Insert failed (probably due to race condition), try to find it again
+              db.get(`SELECT id FROM ${tableName} WHERE company_id = ? AND name = ?`, [companyId, trimmedName], (err, row) => {
+                if (err) {
+                  reject(err);
+                } else if (row) {
+                  resolve(row.id);
+                } else {
+                  reject(new Error(`Failed to create or find ${tableName} with name: ${trimmedName}`));
+                }
+              });
+            }
           }
         });
       }
@@ -358,7 +374,7 @@ router.post('/import', csvUpload.single('csvFile'), (req, res) => {
         return;
       }
       const description = row['Description'] || '';
-      const amount = parseFloat(row['Amount']) || 0;
+      const amount = parseFloat(row['Amount'] || row['Transaction Amount'] || 0) || 0;
       const categoryName = row['Category'] || '';
       
       // Extract job number and cost code from CSV if available
@@ -369,7 +385,7 @@ router.post('/import', csvUpload.single('csvFile'), (req, res) => {
       const externalTransactionId = row['Transaction ID'] || row['TransactionID'] || row['transaction_id'] || null;
       const salesTax = parseFloat(row['Sales Tax'] || row['Tax'] || row['sales_tax'] || 0) || 0;
       
-      // Extract user names for matching
+      // Extract user names for matching - handle the actual Chase CSV format
       const finalFirstName = row['First Name'] || row['FirstName'] || row['first_name'] || row['Name']?.split(' ')[0] || '';
       const finalLastName = row['Last Name'] || row['LastName'] || row['last_name'] || row['Name']?.split(' ').slice(1).join(' ') || '';
 
