@@ -431,15 +431,17 @@ const Transactions = () => {
                 </div>
                 
                 <div className="form-group">
-                  <label className="form-label">Category</label>
+                  <label className="form-label">Cost Code Name</label>
                   <select 
                     value={filters.category} 
                     onChange={(e) => handleFilterChange('category', e.target.value)}
                     className="form-select"
                   >
-                    <option value="">All Categories</option>
-                    {categories.map(cat => (
-                      <option key={cat.id} value={cat.name}>{cat.name}</option>
+                    <option value="">All Cost Code Names</option>
+                    {categories.map(category => (
+                      <option key={category.id} value={category.name}>
+                        {category.name}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -491,7 +493,7 @@ const Transactions = () => {
                     <option value="transaction_date">Date</option>
                     <option value="description">Description</option>
                     <option value="amount">Amount</option>
-                    <option value="category">Category</option>
+                    <option value="category">Cost Code Name</option>
                     <option value="created_at">Created</option>
                   </select>
                 </div>
@@ -548,7 +550,7 @@ const Transactions = () => {
                     <th>Amount</th>
                     <th>Job Number</th>
                     <th>Cost Code</th>
-                    <th>Category</th>
+                    <th>Cost Code Name</th>
                     <th>Description</th>
                     <th>Receipt Status</th>
                     <th>Receipts</th>
@@ -650,7 +652,7 @@ const Transactions = () => {
                         )}
                       </td>
                       
-                      {/* Category */}
+                      {/* Cost Code Name */}
                       <td>
                         {editingTransaction === transaction.id ? (
                           <select
@@ -658,9 +660,11 @@ const Transactions = () => {
                             value={editFormData.category}
                             onChange={(e) => handleEditChange('category', e.target.value)}
                           >
-                            <option value="">Select Category</option>
-                            {categories.map(cat => (
-                              <option key={cat.id} value={cat.name}>{cat.name}</option>
+                            <option value="">Select Cost Code Name</option>
+                            {categories.map(category => (
+                              <option key={category.id} value={category.name}>
+                                {category.name}
+                              </option>
                             ))}
                           </select>
                         ) : (
@@ -847,7 +851,7 @@ const Transactions = () => {
                       ) : (
                         <>
                           <div className="analysis-item">
-                            <strong>Predicted Category:</strong> {aiAnalysisModal.analysis.categorization.predictedCategory || 'Unknown'}
+                            <strong>Predicted Cost Code Name:</strong> {aiAnalysisModal.analysis.categorization.predictedCategory || 'Unknown'}
                             <span className={`confidence-badge ${(aiAnalysisModal.analysis.categorization.confidence || 0) > 0.7 ? 'high' : (aiAnalysisModal.analysis.categorization.confidence || 0) > 0.4 ? 'medium' : 'low'}`}>
                               {((aiAnalysisModal.analysis.categorization.confidence || 0) * 100).toFixed(1)}% confidence
                             </span>

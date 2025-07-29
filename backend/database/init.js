@@ -366,6 +366,7 @@ const initDatabase = () => {
       extracted_amount DECIMAL(10,2),
       extracted_date DATE,
       extracted_merchant TEXT,
+      extracted_description TEXT,
       processing_status TEXT DEFAULT 'pending',
       created_by INTEGER,
       updated_by INTEGER,
@@ -395,6 +396,12 @@ const initDatabase = () => {
       db.run(`ALTER TABLE receipts ADD COLUMN updated_by INTEGER`, (err) => {
         if (err && !err.message.includes('duplicate column name')) {
           console.error('Error adding updated_by column to receipts:', err.message);
+        }
+      });
+
+      db.run(`ALTER TABLE receipts ADD COLUMN extracted_description TEXT`, (err) => {
+        if (err && !err.message.includes('duplicate column name')) {
+          console.error('Error adding extracted_description column to receipts:', err.message);
         }
       });
     }

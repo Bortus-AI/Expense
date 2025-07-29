@@ -56,6 +56,49 @@ Notebooks: $8.75
 SUBTOTAL: $27.23
 TAX: $2.18
 TOTAL: $29.41`
+    },
+    {
+      name: 'Problematic Receipt (Should not return "name")',
+      ocrText: `
+            RECEIPT
+            Date: 2025-01-15
+            Time: 14:30
+
+            Merchant Information:
+            Store: Local Grocery Store
+            Address: 123 Main Street
+
+            Items:
+            - Bread: $2.99
+            - Milk: $3.49
+            - Eggs: $4.99
+
+            SUBTOTAL: $11.47
+            TAX: $0.92
+            TOTAL: $12.39
+
+            Thank you for your purchase!
+            `
+    },
+    {
+      name: 'Starlink Invoice (Test Description Generation)',
+      ocrText: `
+            Space Exploration Technologies Corp.
+            Starlink Enterprise Kit Invoice
+            Date: April 10, 2025
+
+            Hardware Lines:
+            #1 Starlink Enterprise Kit: 1 unit @ $599.00
+            Shipping & Handling: $50.00
+            Subtotal: $649.00
+            Total Tax: $53.55
+            Total Charges: $702.55
+            Total Credited: $500.00
+            Payment: $202.55
+            Total Due: $0.00
+
+            Please contact Customer Support if there are issues with your invoice.
+            `
     }
   ];
 

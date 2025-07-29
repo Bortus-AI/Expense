@@ -65,7 +65,8 @@ Extract and return ONLY a JSON object with these fields:
   "amount": "extracted total amount (numeric value only, no currency symbols)",
   "date": "extracted date in YYYY-MM-DD format if possible",
   "items": ["list of items purchased"],
-  "category": "best category for this transaction",
+  "costCodeName": "best cost code name for this transaction (e.g., 'Software Subscriptions', 'Office Supplies', 'Travel Expenses', 'Equipment')",
+  "description": "detailed description of what was purchased based on the receipt content",
   "confidence": 0.95,
   "notes": "any additional relevant information"
 }
@@ -74,6 +75,8 @@ IMPORTANT:
 - For amount: Extract the TOTAL amount, not individual line items. Look for words like "TOTAL", "AMOUNT DUE", "BALANCE", etc.
 - For merchant: Look for company names, store names, or vendor names. NEVER return generic terms like "name", "merchant", or "vendor". Extract the actual business name.
 - For date: Look for invoice dates, transaction dates, or billing dates.
+- For costCodeName: Choose the most appropriate cost code (e.g., 'Software Subscriptions' for ChatGPT, 'Travel Expenses' for hotels, 'Office Supplies' for Staples)
+- For description: Create a detailed description of what was purchased based on the receipt items and context
 - If any field cannot be determined, use null.
 - If you cannot extract a valid merchant name, return null for merchant.
 
@@ -112,7 +115,8 @@ Be precise and accurate.`;
           amount: null,
           date: null,
           items: [],
-          category: null,
+          costCodeName: null,
+          description: null,
           confidence: 0.0,
           notes: 'LLM processing failed'
         }

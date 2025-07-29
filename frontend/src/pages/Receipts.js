@@ -503,6 +503,7 @@ const Receipts = () => {
                     <th>Extracted Date</th>
                     <th>Amount</th>
                     <th>Merchant</th>
+                    <th>Description</th>
                     <th>File Size</th>
                     <th>Processing Status</th>
                     <th>Match Status</th>
@@ -524,6 +525,11 @@ const Receipts = () => {
                       <td>
                         <div className="text-sm">
                           {receipt.extracted_merchant || 'N/A'}
+                        </div>
+                      </td>
+                      <td>
+                        <div className="text-sm">
+                          {receipt.extracted_description || 'N/A'}
                         </div>
                       </td>
                       <td>{formatFileSize(receipt.file_size)}</td>

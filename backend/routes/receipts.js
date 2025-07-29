@@ -553,13 +553,14 @@ router.post('/upload', upload.single('receipt'), async (req, res) => {
       db.run(`
         UPDATE receipts 
         SET ocr_text = ?, extracted_amount = ?, extracted_date = ?, 
-            extracted_merchant = ?, processing_status = ?, updated_at = CURRENT_TIMESTAMP
+            extracted_merchant = ?, extracted_description = ?, processing_status = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
       `, [
         ocrResult.ocrText,
         breakdown.amount,
         breakdown.date,
         breakdown.merchant,
+        breakdown.description,
         'completed',
         receiptId
       ], (err) => {
@@ -571,6 +572,7 @@ router.post('/upload', upload.single('receipt'), async (req, res) => {
             amount: breakdown.amount,
             date: breakdown.date,
             merchant: breakdown.merchant,
+            description: breakdown.description,
             finalAmount: breakdown.amount,
             llmProcessed: breakdown.llmProcessed,
             notes: breakdown.notes
@@ -597,6 +599,7 @@ router.post('/upload', upload.single('receipt'), async (req, res) => {
           console.log(`Auto-match check for receipt ${receiptId}:`, {
             amount: amountForMatching,
             merchant: breakdown.merchant,
+            description: breakdown.description,
             hasValidAmount,
             hasValidMerchant
           });
@@ -607,9 +610,9 @@ router.post('/upload', upload.single('receipt'), async (req, res) => {
             // Update the receipt with the extracted data for matching
             db.run(`
               UPDATE receipts 
-              SET extracted_amount = ?, extracted_merchant = ?, extracted_date = ?
+              SET extracted_amount = ?, extracted_merchant = ?, extracted_date = ?, extracted_description = ?
               WHERE id = ?
-            `, [amountForMatching, breakdown.merchant, breakdown.date, receiptId], (err) => {
+            `, [amountForMatching, breakdown.merchant, breakdown.date, breakdown.description, receiptId], (err) => {
               if (err) {
                 console.error('Error updating receipt for matching:', err);
               } else {
