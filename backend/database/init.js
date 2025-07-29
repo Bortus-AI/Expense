@@ -446,7 +446,303 @@ const initDatabase = () => {
     }
   });
 
-  console.log('Database tables created/verified');
+  // ML and AI Enhancement Tables
+  
+  // Vendor database for merchant recognition
+  db.run(`
+    CREATE TABLE IF NOT EXISTS vendors (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      company_id INTEGER,
+      name TEXT NOT NULL,
+      normalized_name TEXT NOT NULL,
+      aliases TEXT, -- JSON array of alternative names
+      category_id INTEGER,
+      tax_id TEXT,
+      address TEXT,
+      phone TEXT,
+      website TEXT,
+      confidence_score DECIMAL(5,2) DEFAULT 0.0,
+      is_verified BOOLEAN DEFAULT FALSE,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (company_id) REFERENCES companies(id),
+      FOREIGN KEY (category_id) REFERENCES categories(id)
+    )
+  `, (err) => {
+    if (err) {
+      console.error('Error creating vendors table:', err.message);
+    }
+  });
+
+  // ML categorization patterns
+  db.run(`
+    CREATE TABLE IF NOT EXISTS categorization_patterns (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      company_id INTEGER NOT NULL,
+      pattern_type TEXT NOT NULL, -- 'merchant', 'description', 'amount_range'
+      pattern_value TEXT NOT NULL,
+      category_id INTEGER NOT NULL,
+      confidence_score DECIMAL(5,2) DEFAULT 0.0,
+      usage_count INTEGER DEFAULT 0,
+      last_used DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (company_id) REFERENCES companies(id),
+      FOREIGN KEY (category_id) REFERENCES categories(id)
+    )
+  `, (err) => {
+    if (err) {
+      console.error('Error creating categorization_patterns table:', err.message);
+    }
+  });
+
+  // Duplicate detection records
+  db.run(`
+    CREATE TABLE IF NOT EXISTS duplicate_groups (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      company_id INTEGER NOT NULL,
+      group_hash TEXT NOT NULL,
+      primary_transaction_id INTEGER,
+      duplicate_count INTEGER DEFAULT 1,
+      confidence_score DECIMAL(5,2) DEFAULT 0.0,
+      status TEXT DEFAULT 'pending', -- pending, confirmed, dismissed
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (company_id) REFERENCES companies(id),
+      FOREIGN KEY (primary_transaction_id) REFERENCES transactions(id)
+    )
+  `, (err) => {
+    if (err) {
+      console.error('Error creating duplicate_groups table:', err.message);
+    }
+  });
+
+  // Duplicate transaction mappings
+  db.run(`
+    CREATE TABLE IF NOT EXISTS duplicate_transactions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      duplicate_group_id INTEGER NOT NULL,
+      transaction_id INTEGER NOT NULL,
+      is_primary BOOLEAN DEFAULT FALSE,
+      similarity_score DECIMAL(5,2) DEFAULT 0.0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (duplicate_group_id) REFERENCES duplicate_groups(id),
+      FOREIGN KEY (transaction_id) REFERENCES transactions(id),
+      UNIQUE(duplicate_group_id, transaction_id)
+    )
+  `, (err) => {
+    if (err) {
+      console.error('Error creating duplicate_transactions table:', err.message);
+    }
+  });
+
+  // Fraud detection alerts
+  db.run(`
+    CREATE TABLE IF NOT EXISTS fraud_alerts (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      company_id INTEGER NOT NULL,
+      transaction_id INTEGER,
+      receipt_id INTEGER,
+      alert_type TEXT NOT NULL, -- 'unusual_amount', 'suspicious_merchant', 'time_anomaly', 'location_anomaly'
+      risk_score DECIMAL(5,2) NOT NULL,
+      description TEXT,
+      status TEXT DEFAULT 'pending', -- pending, reviewed, dismissed, confirmed
+      reviewed_by INTEGER,
+      reviewed_at DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (company_id) REFERENCES companies(id),
+      FOREIGN KEY (transaction_id) REFERENCES transactions(id),
+      FOREIGN KEY (receipt_id) REFERENCES receipts(id),
+      FOREIGN KEY (reviewed_by) REFERENCES users(id)
+    )
+  `, (err) => {
+    if (err) {
+      console.error('Error creating fraud_alerts table:', err.message);
+    }
+  });
+
+  // Receipt validation results
+  db.run(`
+    CREATE TABLE IF NOT EXISTS receipt_validations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      receipt_id INTEGER NOT NULL,
+      validation_type TEXT NOT NULL, -- 'amount_check', 'date_check', 'merchant_check', 'format_check'
+      is_valid BOOLEAN NOT NULL,
+      confidence_score DECIMAL(5,2) DEFAULT 0.0,
+      validation_details TEXT, -- JSON with specific validation results
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (receipt_id) REFERENCES receipts(id)
+    )
+  `, (err) => {
+    if (err) {
+      console.error('Error creating receipt_validations table:', err.message);
+    }
+  });
+
+  // Multi-receipt transaction splits
+  db.run(`
+    CREATE TABLE IF NOT EXISTS transaction_splits (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      transaction_id INTEGER NOT NULL,
+      split_group_id TEXT NOT NULL,
+      receipt_id INTEGER NOT NULL,
+      split_amount DECIMAL(10,2) NOT NULL,
+      split_percentage DECIMAL(5,2),
+      description TEXT,
+      created_by INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (transaction_id) REFERENCES transactions(id),
+      FOREIGN KEY (receipt_id) REFERENCES receipts(id),
+      FOREIGN KEY (created_by) REFERENCES users(id)
+    )
+  `, (err) => {
+    if (err) {
+      console.error('Error creating transaction_splits table:', err.message);
+    }
+  });
+
+  // Recurring expense patterns
+  db.run(`
+    CREATE TABLE IF NOT EXISTS recurring_patterns (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      company_id INTEGER NOT NULL,
+      pattern_name TEXT NOT NULL,
+      merchant_pattern TEXT,
+      amount_pattern TEXT, -- 'exact', 'range', 'variable'
+      frequency TEXT NOT NULL, -- 'daily', 'weekly', 'monthly', 'quarterly', 'yearly'
+      expected_amount DECIMAL(10,2),
+      amount_tolerance DECIMAL(10,2) DEFAULT 0.0,
+      category_id INTEGER,
+      is_active BOOLEAN DEFAULT TRUE,
+      last_occurrence DATE,
+      next_expected DATE,
+      occurrence_count INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (company_id) REFERENCES companies(id),
+      FOREIGN KEY (category_id) REFERENCES categories(id)
+    )
+  `, (err) => {
+    if (err) {
+      console.error('Error creating recurring_patterns table:', err.message);
+    }
+  });
+
+  // Recurring pattern matches
+  db.run(`
+    CREATE TABLE IF NOT EXISTS recurring_matches (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      pattern_id INTEGER NOT NULL,
+      transaction_id INTEGER NOT NULL,
+      match_confidence DECIMAL(5,2) NOT NULL,
+      variance_amount DECIMAL(10,2) DEFAULT 0.0,
+      variance_days INTEGER DEFAULT 0,
+      is_confirmed BOOLEAN DEFAULT FALSE,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (pattern_id) REFERENCES recurring_patterns(id),
+      FOREIGN KEY (transaction_id) REFERENCES transactions(id)
+    )
+  `, (err) => {
+    if (err) {
+      console.error('Error creating recurring_matches table:', err.message);
+    }
+  });
+
+  // Calendar integration events
+  db.run(`
+    CREATE TABLE IF NOT EXISTS calendar_events (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      company_id INTEGER NOT NULL,
+      user_id INTEGER NOT NULL,
+      event_id TEXT NOT NULL, -- External calendar event ID
+      title TEXT NOT NULL,
+      description TEXT,
+      start_date DATETIME NOT NULL,
+      end_date DATETIME,
+      location TEXT,
+      attendees TEXT, -- JSON array
+      estimated_cost DECIMAL(10,2),
+      category_id INTEGER,
+      calendar_provider TEXT, -- 'google', 'outlook', 'apple'
+      sync_status TEXT DEFAULT 'active', -- active, disabled, error
+      last_synced DATETIME,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (company_id) REFERENCES companies(id),
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (category_id) REFERENCES categories(id)
+    )
+  `, (err) => {
+    if (err) {
+      console.error('Error creating calendar_events table:', err.message);
+    }
+  });
+
+  // Calendar-transaction correlations
+  db.run(`
+    CREATE TABLE IF NOT EXISTS calendar_correlations (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      calendar_event_id INTEGER NOT NULL,
+      transaction_id INTEGER NOT NULL,
+      correlation_score DECIMAL(5,2) NOT NULL,
+      correlation_type TEXT NOT NULL, -- 'location', 'time', 'merchant', 'amount'
+      is_confirmed BOOLEAN DEFAULT FALSE,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (calendar_event_id) REFERENCES calendar_events(id),
+      FOREIGN KEY (transaction_id) REFERENCES transactions(id)
+    )
+  `, (err) => {
+    if (err) {
+      console.error('Error creating calendar_correlations table:', err.message);
+    }
+  });
+
+  // ML model metadata and performance tracking
+  db.run(`
+    CREATE TABLE IF NOT EXISTS ml_models (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      model_name TEXT NOT NULL,
+      model_type TEXT NOT NULL, -- 'categorization', 'fraud_detection', 'duplicate_detection'
+      version TEXT NOT NULL,
+      accuracy_score DECIMAL(5,2),
+      training_data_count INTEGER,
+      last_trained DATETIME,
+      is_active BOOLEAN DEFAULT TRUE,
+      model_parameters TEXT, -- JSON with model configuration
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `, (err) => {
+    if (err) {
+      console.error('Error creating ml_models table:', err.message);
+    }
+  });
+
+  // ML prediction logs for performance tracking
+  db.run(`
+    CREATE TABLE IF NOT EXISTS ml_predictions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      model_id INTEGER NOT NULL,
+      transaction_id INTEGER,
+      receipt_id INTEGER,
+      prediction_type TEXT NOT NULL,
+      predicted_value TEXT NOT NULL,
+      confidence_score DECIMAL(5,2) NOT NULL,
+      actual_value TEXT,
+      is_correct BOOLEAN,
+      feedback_provided BOOLEAN DEFAULT FALSE,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (model_id) REFERENCES ml_models(id),
+      FOREIGN KEY (transaction_id) REFERENCES transactions(id),
+      FOREIGN KEY (receipt_id) REFERENCES receipts(id)
+    )
+  `, (err) => {
+    if (err) {
+      console.error('Error creating ml_predictions table:', err.message);
+    }
+  });
+
+  console.log('Database tables created/verified (including ML/AI enhancement tables)');
   
   // Create default admin user if needed (run after a short delay to ensure tables are ready)
   setTimeout(() => {

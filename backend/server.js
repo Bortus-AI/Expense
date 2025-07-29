@@ -18,6 +18,7 @@ const matchRoutes = require('./routes/matches');
 const exportRoutes = require('./routes/exports');
 const analyticsRoutes = require('./routes/analytics');
 const masterDataRoutes = require('./routes/masterdata');
+const aiRoutes = require('./routes/ai');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -93,6 +94,7 @@ app.use('/api/matches', matchRoutes);
 app.use('/api/exports', exportRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/masterdata', masterDataRoutes);
+app.use('/api/ai', aiRoutes);
 
 // Health check route
 app.get('/api/health', (req, res) => {
@@ -137,4 +139,4 @@ app.listen(PORT, () => {
   console.log('  ✅ Role-Based Access Control');
   console.log('  ✅ Rate Limiting & Security');
   console.log('  ✅ Receipt OCR & Matching');
-}); 
+});

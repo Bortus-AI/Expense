@@ -320,18 +320,8 @@ router.delete('/:id', (req, res) => {
   });
 });
 
-// Auto-match all receipts
 router.post('/auto-match', (req, res) => {
   const confidenceThreshold = req.body.threshold || 70;
-
-  console.log('=== AUTO-MATCH DEBUG ===');
-  console.log('User:', {
-    id: req.user?.id,
-    email: req.user?.email,
-    currentRole: req.user?.currentRole,
-    companyId: req.companyId
-  });
-  console.log('Confidence threshold:', confidenceThreshold);
 
   // Apply the same filtering as other endpoints
   let receiptFilter = 'WHERE r.company_id = ?';
@@ -361,16 +351,11 @@ router.post('/auto-match', (req, res) => {
     AND r.extracted_amount IS NOT NULL
   `;
 
-  console.log('Receipt query:', receiptQuery);
-  console.log('Receipt params:', receiptParams);
-
   db.all(receiptQuery, receiptParams, (err, receipts) => {
     if (err) {
       console.error('Error fetching receipts for auto-match:', err);
       return res.status(500).json({ error: err.message });
     }
-
-    console.log(`Found ${receipts.length} receipts for auto-matching`);
 
     // Get unmatched transactions with filtering
     const transactionQuery = `
@@ -381,16 +366,11 @@ router.post('/auto-match', (req, res) => {
       )
     `;
 
-    console.log('Transaction query:', transactionQuery);
-    console.log('Transaction params:', transactionParams);
-
     db.all(transactionQuery, transactionParams, (err, transactions) => {
       if (err) {
         console.error('Error fetching transactions for auto-match:', err);
         return res.status(500).json({ error: err.message });
       }
-
-      console.log(`Found ${transactions.length} transactions for auto-matching`);
 
       let autoMatched = 0;
       let matchDetails = [];
@@ -407,7 +387,6 @@ router.post('/auto-match', (req, res) => {
         // Auto-match if confidence is high enough
         if (matches.length > 0 && matches[0].confidence >= confidenceThreshold) {
           const bestMatch = matches[0];
-          console.log(`Auto-matching receipt ${receipt.id} with transaction ${bestMatch.transaction.id} (confidence: ${bestMatch.confidence}%)`);
           
           stmt.run([
             bestMatch.transaction.id,
@@ -438,9 +417,6 @@ router.post('/auto-match', (req, res) => {
           return res.status(500).json({ error: 'Error completing auto-match' });
         }
         
-        console.log(`Auto-match completed: ${autoMatched} matches created`);
-        console.log('Match details:', matchDetails);
-        
         res.json({
           message: 'Auto-matching completed',
           matched: autoMatched,
@@ -454,16 +430,7 @@ router.post('/auto-match', (req, res) => {
   });
 });
 
-// Get match statistics
 router.get('/stats', (req, res) => {
-  console.log('=== MATCH STATS DEBUG ===');
-  console.log('User:', {
-    id: req.user?.id,
-    email: req.user?.email,
-    currentRole: req.user?.currentRole,
-    currentCompany: req.user?.currentCompany?.name,
-    companyId: req.companyId
-  });
 
   // Apply the same filtering logic as other match endpoints
   let matchesFilter = 'WHERE t.company_id = ? AND r.company_id = ?';
@@ -475,7 +442,6 @@ router.get('/stats', (req, res) => {
 
   // If user is not admin, only show their own data
   if (req.user && req.user.currentRole !== 'admin') {
-    console.log('Applying user-level filtering (not admin)');
     // Show matches where user created either the transaction OR the receipt
     matchesFilter += ' AND (t.created_by = ? OR r.created_by = ?)';
     receiptsFilter += ' AND r.created_by = ?';
@@ -483,8 +449,6 @@ router.get('/stats', (req, res) => {
     queryParams.push(req.user.id, req.user.id);
     receiptsParams.push(req.user.id);
     transactionsParams.push(req.user.id);
-  } else {
-    console.log('Admin user - showing all company data');
   }
 
   const queries = [
@@ -562,7 +526,6 @@ router.get('/stats', (req, res) => {
       
       completed++;
       if (completed === queries.length) {
-        console.log('Final stats result:', stats);
         res.json(stats);
       }
     });
@@ -687,4 +650,4 @@ router.get('/debug', (req, res) => {
   });
 });
 
-module.exports = router; 
+module.exports = router;

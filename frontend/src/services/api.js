@@ -105,7 +105,16 @@ export const receiptAPI = {
     });
   },
   update: (id, data) => api.put(`/receipts/${id}`, data),
-  delete: (id) => api.delete(`/receipts/${id}`)
+  delete: (id) => api.delete(`/receipts/${id}`),
+  view: (id) => api.get(`/receipts/${id}/view`, {
+    responseType: 'blob'
+  }),
+  download: (id) => api.get(`/receipts/${id}/download`, {
+    responseType: 'blob'
+  }),
+  thumbnail: (id) => api.get(`/receipts/${id}/thumbnail`, {
+    responseType: 'blob'
+  })
 };
 
 // Match API

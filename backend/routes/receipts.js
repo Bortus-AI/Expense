@@ -979,27 +979,220 @@ router.put('/:id', (req, res) => {
 
 // Delete receipt
 router.delete('/:id', (req, res) => {
-  // First get the receipt to delete the file
-  db.get('SELECT file_path FROM receipts WHERE id = ?', [req.params.id], (err, row) => {
+  // First check if user has permission to delete this receipt
+  let whereClause = 'WHERE r.id = ? AND r.company_id = ?';
+  let queryParams = [req.params.id, req.companyId];
+
+  // If user is not admin, only allow deletion of their own receipts
+  if (req.user && req.user.currentRole !== 'admin') {
+    whereClause += ' AND r.created_by = ?';
+    queryParams.push(req.user.id);
+  }
+
+  // Get the receipt to check permissions and get file path
+  db.get(`SELECT r.*, COUNT(m.id) as match_count FROM receipts r LEFT JOIN matches m ON r.id = m.receipt_id ${whereClause} GROUP BY r.id`, queryParams, (err, row) => {
     if (err) {
       return res.status(500).json({ error: err.message });
     }
     if (!row) {
-      return res.status(404).json({ error: 'Receipt not found' });
+      return res.status(404).json({ error: 'Receipt not found or access denied' });
     }
 
-    // Delete the file if it exists
-    if (fs.existsSync(row.file_path)) {
-      fs.unlinkSync(row.file_path);
-    }
-
-    // Delete from database
-    db.run('DELETE FROM receipts WHERE id = ?', [req.params.id], function(err) {
+    // Delete related matches first (due to foreign key constraint)
+    db.run('DELETE FROM matches WHERE receipt_id = ?', [req.params.id], function(err) {
       if (err) {
-        return res.status(500).json({ error: err.message });
+        return res.status(500).json({ error: 'Error deleting receipt matches: ' + err.message });
       }
-      res.json({ message: 'Receipt deleted successfully' });
+
+      // Delete the file if it exists
+      if (row.file_path && fs.existsSync(row.file_path)) {
+        try {
+          fs.unlinkSync(row.file_path);
+        } catch (fileErr) {
+          console.error('Error deleting file:', fileErr);
+          // Continue with database deletion even if file deletion fails
+        }
+      }
+
+      // Delete from database
+      db.run('DELETE FROM receipts WHERE id = ?', [req.params.id], function(err) {
+        if (err) {
+          return res.status(500).json({ error: 'Error deleting receipt: ' + err.message });
+        }
+        res.json({ 
+          message: 'Receipt deleted successfully',
+          deletedMatches: this.changes > 0 ? row.match_count : 0
+        });
+      });
     });
+  });
+});
+
+// View/Download receipt
+router.get('/:id/view', (req, res) => {
+  // Check if user has permission to view this receipt
+  let whereClause = 'WHERE r.id = ? AND r.company_id = ?';
+  let queryParams = [req.params.id, req.companyId];
+
+  // If user is not admin, only allow viewing their own receipts
+  if (req.user && req.user.currentRole !== 'admin') {
+    whereClause += ' AND r.created_by = ?';
+    queryParams.push(req.user.id);
+  }
+
+  db.get(`SELECT * FROM receipts r ${whereClause}`, queryParams, (err, row) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    if (!row) {
+      return res.status(404).json({ error: 'Receipt not found or access denied' });
+    }
+
+    // Check if file exists
+    if (!row.file_path || !fs.existsSync(row.file_path)) {
+      return res.status(404).json({ error: 'Receipt file not found' });
+    }
+
+    // Determine content type based on file extension
+    const ext = path.extname(row.filename).toLowerCase();
+    let contentType = 'application/octet-stream';
+    
+    if (ext === '.pdf') {
+      contentType = 'application/pdf';
+    } else if (['.jpg', '.jpeg'].includes(ext)) {
+      contentType = 'image/jpeg';
+    } else if (ext === '.png') {
+      contentType = 'image/png';
+    } else if (ext === '.gif') {
+      contentType = 'image/gif';
+    } else if (ext === '.webp') {
+      contentType = 'image/webp';
+    }
+
+    // Set headers for download or inline viewing
+    const disposition = req.query.download === 'true' ? 'attachment' : 'inline';
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `${disposition}; filename="${row.original_filename}"`);
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+
+    // Stream the file
+    const fileStream = fs.createReadStream(row.file_path);
+    fileStream.on('error', (err) => {
+      console.error('Error streaming file:', err);
+      res.status(500).json({ error: 'Error reading receipt file' });
+    });
+    
+    fileStream.pipe(res);
+  });
+});
+
+// Download receipt with proper blob handling
+router.get('/:id/download', (req, res) => {
+  // Check if user has permission to view this receipt
+  let whereClause = 'WHERE r.id = ? AND r.company_id = ?';
+  let queryParams = [req.params.id, req.companyId];
+
+  // If user is not admin, only allow viewing their own receipts
+  if (req.user && req.user.currentRole !== 'admin') {
+    whereClause += ' AND r.created_by = ?';
+    queryParams.push(req.user.id);
+  }
+
+  db.get(`SELECT * FROM receipts r ${whereClause}`, queryParams, (err, row) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    if (!row) {
+      return res.status(404).json({ error: 'Receipt not found or access denied' });
+    }
+
+    // Check if file exists
+    if (!row.file_path || !fs.existsSync(row.file_path)) {
+      return res.status(404).json({ error: 'Receipt file not found' });
+    }
+
+    // Read file as buffer and send as blob
+    fs.readFile(row.file_path, (err, data) => {
+      if (err) {
+        return res.status(500).json({ error: 'Error reading receipt file' });
+      }
+
+      // Determine content type based on file extension
+      const ext = path.extname(row.filename).toLowerCase();
+      let contentType = 'application/octet-stream';
+      
+      if (ext === '.pdf') {
+        contentType = 'application/pdf';
+      } else if (['.jpg', '.jpeg'].includes(ext)) {
+        contentType = 'image/jpeg';
+      } else if (ext === '.png') {
+        contentType = 'image/png';
+      } else if (ext === '.gif') {
+        contentType = 'image/gif';
+      } else if (ext === '.webp') {
+        contentType = 'image/webp';
+      }
+
+      res.setHeader('Content-Type', contentType);
+      res.setHeader('Content-Disposition', `attachment; filename="${row.original_filename}"`);
+      res.setHeader('Content-Length', data.length);
+      res.send(data);
+    });
+  });
+});
+
+// Get receipt thumbnail (for preview)
+router.get('/:id/thumbnail', (req, res) => {
+  // Check if user has permission to view this receipt
+  let whereClause = 'WHERE r.id = ? AND r.company_id = ?';
+  let queryParams = [req.params.id, req.companyId];
+
+  // If user is not admin, only allow viewing their own receipts
+  if (req.user && req.user.currentRole !== 'admin') {
+    whereClause += ' AND r.created_by = ?';
+    queryParams.push(req.user.id);
+  }
+
+  db.get(`SELECT * FROM receipts r ${whereClause}`, queryParams, (err, row) => {
+    if (err) {
+      return res.status(500).json({ error: err.message });
+    }
+    if (!row) {
+      return res.status(404).json({ error: 'Receipt not found or access denied' });
+    }
+
+    // Check if file exists
+    if (!row.file_path || !fs.existsSync(row.file_path)) {
+      return res.status(404).json({ error: 'Receipt file not found' });
+    }
+
+    const ext = path.extname(row.filename).toLowerCase();
+    
+    // Only generate thumbnails for images, not PDFs
+    if (ext === '.pdf') {
+      return res.status(400).json({ error: 'Thumbnails not available for PDF files' });
+    }
+
+    // For images, serve the original file as thumbnail (could be optimized later)
+    let contentType = 'image/jpeg';
+    if (ext === '.png') {
+      contentType = 'image/png';
+    } else if (ext === '.gif') {
+      contentType = 'image/gif';
+    } else if (ext === '.webp') {
+      contentType = 'image/webp';
+    }
+
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Cache-Control', 'private, max-age=3600');
+
+    const fileStream = fs.createReadStream(row.file_path);
+    fileStream.on('error', (err) => {
+      console.error('Error streaming thumbnail:', err);
+      res.status(500).json({ error: 'Error reading receipt file' });
+    });
+    
+    fileStream.pipe(res);
   });
 });
 

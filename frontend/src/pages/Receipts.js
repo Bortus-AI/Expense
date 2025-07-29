@@ -12,6 +12,14 @@ const Receipts = () => {
   const [uploading, setUploading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   
+  // View modal state
+  const [viewModal, setViewModal] = useState({
+    isOpen: false,
+    receipt: null,
+    viewUrl: null,
+    loading: false
+  });
+  
   // Admin filtering state
   const [companyUsers, setCompanyUsers] = useState([]);
   const [filters, setFilters] = useState({
@@ -135,6 +143,108 @@ const Receipts = () => {
         toast.error('Error deleting receipt');
       }
     }
+  };
+
+  const handleView = async (receipt) => {
+    setViewModal({
+      isOpen: true,
+      receipt,
+      viewUrl: null,
+      loading: true
+    });
+
+    try {
+      const response = await receiptAPI.view(receipt.id);
+      const blob = new Blob([response.data]);
+      const url = URL.createObjectURL(blob);
+      
+      setViewModal(prev => ({
+        ...prev,
+        viewUrl: url,
+        loading: false
+      }));
+    } catch (error) {
+      console.error('Error loading receipt:', error);
+      toast.error('Error loading receipt');
+      setViewModal(prev => ({
+        ...prev,
+        loading: false
+      }));
+    }
+  };
+
+  const openInNewTab = async (receipt) => {
+    try {
+      // Fetch the file data with proper content type
+      const response = await receiptAPI.view(receipt.id);
+      
+      // Determine content type based on file extension
+      const ext = receipt.original_filename.toLowerCase().split('.').pop();
+      let contentType = 'application/octet-stream';
+      
+      if (ext === 'pdf') {
+        contentType = 'application/pdf';
+      } else if (['jpg', 'jpeg'].includes(ext)) {
+        contentType = 'image/jpeg';
+      } else if (ext === 'png') {
+        contentType = 'image/png';
+      } else if (ext === 'gif') {
+        contentType = 'image/gif';
+      } else if (ext === 'webp') {
+        contentType = 'image/webp';
+      }
+
+      // Create a new blob with the correct content type
+      const blob = new Blob([response.data], { type: contentType });
+      const url = URL.createObjectURL(blob);
+      
+      // Open in new tab
+      const newWindow = window.open(url, '_blank');
+      
+      // Clean up the URL after a delay
+      setTimeout(() => {
+        URL.revokeObjectURL(url);
+      }, 1000);
+    } catch (error) {
+      console.error('Error opening receipt in new tab:', error);
+      toast.error('Error opening receipt');
+    }
+  };
+
+  const handleDownload = async (receipt) => {
+    try {
+      const response = await receiptAPI.download(receipt.id);
+      const blob = new Blob([response.data]);
+      const url = URL.createObjectURL(blob);
+      
+      // Create a temporary link and trigger download
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = receipt.original_filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Clean up the URL
+      URL.revokeObjectURL(url);
+      
+      toast.success('Receipt downloaded successfully');
+    } catch (error) {
+      console.error('Error downloading receipt:', error);
+      toast.error('Error downloading receipt');
+    }
+  };
+
+  const closeViewModal = () => {
+    if (viewModal.viewUrl) {
+      URL.revokeObjectURL(viewModal.viewUrl);
+    }
+    setViewModal({
+      isOpen: false,
+      receipt: null,
+      viewUrl: null,
+      loading: false
+    });
   };
 
   const getStatusBadge = (status) => {
@@ -432,6 +542,18 @@ const Receipts = () => {
                       )}
                       <td>
                         <button
+                          className="btn btn-sm btn-info"
+                          onClick={() => handleView(receipt)}
+                        >
+                          View
+                        </button>
+                        <button
+                          className="btn btn-sm btn-success"
+                          onClick={() => handleDownload(receipt)}
+                        >
+                          Download
+                        </button>
+                        <button
                           className="btn btn-sm btn-danger"
                           onClick={() => handleDelete(receipt.id)}
                         >
@@ -478,6 +600,58 @@ const Receipts = () => {
           </div>
         )}
       </div>
+
+      {/* View Modal */}
+      {viewModal.isOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <h3>Receipt Details</h3>
+            {viewModal.loading ? (
+              <div className="text-center">
+                <div className="spinner"></div>
+                <p>Loading receipt...</p>
+              </div>
+            ) : (
+              <div className="receipt-details">
+                <p><strong>Filename:</strong> {viewModal.receipt.original_filename}</p>
+                <p><strong>Upload Date:</strong> {formatDate(viewModal.receipt.upload_date)}</p>
+                <p><strong>Extracted Date:</strong> {formatDate(viewModal.receipt.extracted_date)}</p>
+                <p><strong>Amount:</strong> {formatAmount(viewModal.receipt.extracted_amount)}</p>
+                <p><strong>Merchant:</strong> {viewModal.receipt.extracted_merchant || 'N/A'}</p>
+                <p><strong>File Size:</strong> {formatFileSize(viewModal.receipt.file_size)}</p>
+                <p><strong>Processing Status:</strong> {getStatusBadge(viewModal.receipt.processing_status)}</p>
+                <p><strong>Match Status:</strong> {getMatchStatus(viewModal.receipt.match_count)}</p>
+                {viewModal.receipt.created_by_first_name && viewModal.receipt.created_by_last_name && (
+                  <p><strong>Created By:</strong> {viewModal.receipt.created_by_first_name} {viewModal.receipt.created_by_last_name}</p>
+                )}
+              </div>
+            )}
+            <div className="modal-actions">
+              <button className="btn btn-primary" onClick={closeViewModal}>Close</button>
+              {viewModal.viewUrl && (
+                <button 
+                  className="btn btn-secondary"
+                  onClick={async () => {
+                    const button = event.target;
+                    const originalText = button.textContent;
+                    button.textContent = 'Opening...';
+                    button.disabled = true;
+                    
+                    try {
+                      await openInNewTab(viewModal.receipt);
+                    } finally {
+                      button.textContent = originalText;
+                      button.disabled = false;
+                    }
+                  }}
+                >
+                  Open in New Tab
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
