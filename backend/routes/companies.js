@@ -27,13 +27,15 @@ router.get('/:id', requireCompanyAccess, requireRole('admin'), (req, res) => {
 
   const query = `
     SELECT c.*, 
-           COUNT(uc.user_id) as user_count,
-           COUNT(t.id) as transaction_count,
-           COUNT(r.id) as receipt_count
+           COUNT(DISTINCT uc.user_id) as user_count,
+           COUNT(DISTINCT t.id) as transaction_count,
+           COUNT(DISTINCT r.id) as receipt_count,
+           COUNT(DISTINCT CASE WHEN m.user_confirmed = 1 THEN m.transaction_id END) as confirmed_matches
     FROM companies c
     LEFT JOIN user_companies uc ON c.id = uc.company_id AND uc.status = 'active'
     LEFT JOIN transactions t ON c.id = t.company_id
     LEFT JOIN receipts r ON c.id = r.company_id
+    LEFT JOIN matches m ON t.id = m.transaction_id
     WHERE c.id = ?
     GROUP BY c.id
   `;
@@ -48,6 +50,10 @@ router.get('/:id', requireCompanyAccess, requireRole('admin'), (req, res) => {
       return res.status(404).json({ error: 'Company not found' });
     }
 
+    const transactionCount = company.transaction_count || 0;
+    const confirmedMatches = company.confirmed_matches || 0;
+    const matchRate = transactionCount > 0 ? Math.round((confirmedMatches / transactionCount) * 100) : 0;
+
     res.json({
       company: {
         id: company.id,
@@ -56,11 +62,52 @@ router.get('/:id', requireCompanyAccess, requireRole('admin'), (req, res) => {
         planType: company.plan_type,
         settings: company.settings ? JSON.parse(company.settings) : {},
         userCount: company.user_count,
-        transactionCount: company.transaction_count,
+        transactionCount,
         receiptCount: company.receipt_count,
+        confirmedMatches,
+        matchRate,
         createdAt: company.created_at,
         updatedAt: company.updated_at
       }
+    });
+  });
+});
+
+// Get company statistics (available to all users in the company)
+router.get('/:id/stats', requireCompanyAccess, (req, res) => {
+  const companyId = parseInt(req.params.id);
+
+  // Verify user has access to this company
+  if (req.user.currentCompany.id !== companyId) {
+    return res.status(403).json({ error: 'Access denied to this company' });
+  }
+
+  const query = `
+    SELECT 
+      (SELECT COUNT(*) FROM user_companies uc WHERE uc.company_id = ? AND uc.status = 'active') as user_count,
+      (SELECT COUNT(*) FROM transactions t WHERE t.company_id = ?) as transaction_count,
+      (SELECT COUNT(*) FROM receipts r WHERE r.company_id = ?) as receipt_count,
+      (SELECT COUNT(*) FROM matches m 
+       JOIN transactions t ON m.transaction_id = t.id 
+       WHERE t.company_id = ? AND m.user_confirmed = 1) as confirmed_matches
+  `;
+
+  db.get(query, [companyId, companyId, companyId, companyId], (err, stats) => {
+    if (err) {
+      console.error('Error fetching company statistics:', err);
+      return res.status(500).json({ error: 'Failed to fetch company statistics' });
+    }
+
+    const transactionCount = stats.transaction_count || 0;
+    const receiptCount = stats.receipt_count || 0;
+    const matchRate = transactionCount > 0 ? Math.round((stats.confirmed_matches / transactionCount) * 100) : 0;
+
+    res.json({
+      userCount: stats.user_count || 0,
+      transactionCount,
+      receiptCount,
+      confirmedMatches: stats.confirmed_matches || 0,
+      matchRate
     });
   });
 });

@@ -37,7 +37,9 @@ const CompanySettings = () => {
       const response = await api.get(`/companies/${currentCompany.id}`);
       const company = response.data.company;
       
+      // The company data already includes the correct statistics
       setCompanyData(company);
+      
       setCompanyForm({
         name: company.name || '',
         domain: company.domain || ''
@@ -506,9 +508,7 @@ const CompanySettings = () => {
                 <div className="stat-icon">📊</div>
                 <div className="stat-content">
                   <div className="stat-number">
-                    {companyData.transactionCount > 0 
-                      ? Math.round((companyData.receiptCount / companyData.transactionCount) * 100)
-                      : 0}%
+                    {companyData.matchRate || 0}%
                   </div>
                   <div className="stat-label">Match Rate</div>
                 </div>
