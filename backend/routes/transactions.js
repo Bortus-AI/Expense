@@ -365,6 +365,14 @@ router.post('/import', csvUpload.single('csvFile'), (req, res) => {
       const jobNumberName = row['Job Number'] || row['JobNumber'] || row['job_number'] || row['Job'] || '';
       const costCodeName = row['Cost Code'] || row['CostCode'] || row['cost_code'] || row['Code'] || '';
 
+      // Extract additional fields if available
+      const externalTransactionId = row['Transaction ID'] || row['TransactionID'] || row['transaction_id'] || null;
+      const salesTax = parseFloat(row['Sales Tax'] || row['Tax'] || row['sales_tax'] || 0) || 0;
+      
+      // Extract user names for matching
+      const finalFirstName = row['First Name'] || row['FirstName'] || row['first_name'] || row['Name']?.split(' ')[0] || '';
+      const finalLastName = row['Last Name'] || row['LastName'] || row['last_name'] || row['Name']?.split(' ').slice(1).join(' ') || '';
+
       // Create a unique identifier from the transaction data
       const chaseTransactionId = `${transactionDate}_${description || 'NO_DESCRIPTION'}_${Math.abs(amount)}`.replace(/[^a-zA-Z0-9]/g, '_');
 
