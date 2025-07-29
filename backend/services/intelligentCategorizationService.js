@@ -5,7 +5,45 @@ class IntelligentCategorizationService {
   constructor() {
     this.merchantPatterns = new Map();
     this.categoryPatterns = new Map();
+    this.softwarePatterns = new Map();
+    this.subscriptionPatterns = new Map();
     this.loadPatterns();
+    this.initializeDefaultPatterns();
+  }
+
+  // Initialize default patterns for common categories
+  initializeDefaultPatterns() {
+    // Software and Technology patterns
+    const softwarePatterns = [
+      'openai', 'chatgpt', 'github', 'microsoft', 'adobe', 'autodesk', 'salesforce',
+      'zoom', 'slack', 'notion', 'figma', 'canva', 'dropbox', 'google', 'aws', 'azure',
+      'digitalocean', 'heroku', 'stripe', 'paypal', 'shopify', 'wordpress', 'squarespace',
+      'wix', 'webflow', 'hubspot', 'mailchimp', 'sendgrid', 'twilio', 'plaid', 'stripe',
+      'software', 'saas', 'subscription', 'license', 'premium', 'pro', 'enterprise'
+    ];
+
+    softwarePatterns.forEach(pattern => {
+      this.softwarePatterns.set(pattern.toLowerCase(), {
+        categoryName: 'Software & Technology',
+        confidence: 0.85,
+        type: 'software'
+      });
+    });
+
+    // Subscription patterns
+    const subscriptionPatterns = [
+      'subscription', 'monthly', 'annual', 'recurring', 'billing', 'membership',
+      'premium', 'pro', 'enterprise', 'plus', 'premium', 'unlimited', 'basic',
+      'standard', 'professional', 'business', 'team', 'organization'
+    ];
+
+    subscriptionPatterns.forEach(pattern => {
+      this.subscriptionPatterns.set(pattern.toLowerCase(), {
+        categoryName: 'Subscriptions & Memberships',
+        confidence: 0.80,
+        type: 'subscription'
+      });
+    });
   }
 
   // Load existing patterns from database
@@ -79,61 +117,93 @@ class IntelligentCategorizationService {
       .filter(word => !/^\d+$/.test(word)); // Remove pure numbers
   }
 
-  // Machine learning-based categorization
+  // Enhanced categorization with software/subscription detection
   async categorizeTransaction(transaction, companyId) {
     try {
       const results = {
         suggestedCategory: null,
         confidence: 0.0,
         reasoning: [],
-        merchantInfo: null
+        merchantInfo: null,
+        predictedCategory: 'Unknown',
+        predictedCategoryId: null
       };
 
-      // 1. Merchant-based categorization
-      const merchantResult = await this.categorizeBySimilarMerchant(transaction.description, companyId);
+      const description = transaction.description || '';
+      const amount = transaction.amount || 0;
+      const normalizedDescription = description.toLowerCase();
+
+      // 1. Check for software/subscription patterns first
+      const softwareMatch = await this.detectSoftwareSubscription(description);
+      if (softwareMatch.confidence > results.confidence) {
+        results.suggestedCategory = softwareMatch.categoryId;
+        results.confidence = softwareMatch.confidence;
+        results.predictedCategory = softwareMatch.categoryName;
+        results.predictedCategoryId = softwareMatch.categoryId;
+        results.reasoning.push(`Software/Subscription pattern match: ${softwareMatch.reason}`);
+      }
+
+      // 2. Merchant-based categorization
+      const merchantResult = await this.categorizeBySimilarMerchant(description, companyId);
       if (merchantResult.confidence > results.confidence) {
         results.suggestedCategory = merchantResult.categoryId;
         results.confidence = merchantResult.confidence;
+        results.predictedCategory = merchantResult.categoryName || 'Unknown';
+        results.predictedCategoryId = merchantResult.categoryId;
         results.reasoning.push(`Merchant pattern match: ${merchantResult.reason}`);
         results.merchantInfo = merchantResult.merchantInfo;
       }
 
-      // 2. Description keyword categorization
-      const keywordResult = await this.categorizeByKeywords(transaction.description, companyId);
+      // 3. Keyword-based categorization
+      const keywordResult = await this.categorizeByKeywords(description, companyId);
       if (keywordResult.confidence > results.confidence) {
         results.suggestedCategory = keywordResult.categoryId;
         results.confidence = keywordResult.confidence;
+        results.predictedCategory = keywordResult.categoryName || 'Unknown';
+        results.predictedCategoryId = keywordResult.categoryId;
         results.reasoning.push(`Keyword pattern match: ${keywordResult.reason}`);
       }
 
-      // 3. Amount-based categorization
-      const amountResult = await this.categorizeByAmountRange(transaction.amount, companyId);
-      if (amountResult.confidence > 0.3 && results.confidence < 0.7) {
-        // Only use amount-based if we don't have a strong match already
-        results.reasoning.push(`Amount range pattern: ${amountResult.reason}`);
-        if (results.confidence < 0.5) {
-          results.suggestedCategory = amountResult.categoryId;
-          results.confidence = Math.max(results.confidence, amountResult.confidence * 0.6); // Reduce weight
-        }
+      // 4. Amount-based categorization
+      const amountResult = await this.categorizeByAmountRange(amount, companyId);
+      if (amountResult.confidence > results.confidence) {
+        results.suggestedCategory = amountResult.categoryId;
+        results.confidence = amountResult.confidence;
+        results.predictedCategory = amountResult.categoryName || 'Unknown';
+        results.predictedCategoryId = amountResult.categoryId;
+        results.reasoning.push(`Amount range match: ${amountResult.reason}`);
       }
 
-      // 4. Historical pattern matching
+      // 5. Historical pattern matching
       const historicalResult = await this.categorizeByHistoricalPattern(transaction, companyId);
       if (historicalResult.confidence > results.confidence) {
         results.suggestedCategory = historicalResult.categoryId;
         results.confidence = historicalResult.confidence;
+        results.predictedCategory = historicalResult.categoryName || 'Unknown';
+        results.predictedCategoryId = historicalResult.categoryId;
         results.reasoning.push(`Historical pattern match: ${historicalResult.reason}`);
       }
 
-      // Log the prediction for ML model improvement
-      if (results.suggestedCategory && results.confidence > 0.3) {
-        await this.logPrediction('categorization', transaction.id, null, 'category', results.suggestedCategory, results.confidence);
+      // If no category found, try to create a default category
+      if (!results.suggestedCategory) {
+        const defaultCategory = await this.getOrCreateDefaultCategory(companyId, 'Software & Technology');
+        results.suggestedCategory = defaultCategory.id;
+        results.predictedCategory = defaultCategory.name;
+        results.predictedCategoryId = defaultCategory.id;
+        results.confidence = 0.3; // Low confidence for default
+        results.reasoning.push('Using default category: Software & Technology');
       }
 
       return results;
     } catch (error) {
-      console.error('Error in categorizeTransaction:', error);
-      return { suggestedCategory: null, confidence: 0.0, reasoning: ['Error in categorization'], merchantInfo: null };
+      console.error('Error in enhanced categorization:', error);
+      return {
+        suggestedCategory: null,
+        confidence: 0.0,
+        reasoning: ['Error during categorization'],
+        predictedCategory: 'Unknown',
+        predictedCategoryId: null
+      };
     }
   }
 
@@ -145,8 +215,10 @@ class IntelligentCategorizationService {
     // Check for exact merchant matches first
     for (const [merchant, info] of this.merchantPatterns) {
       if (normalizedDescription.includes(merchant)) {
+        const categoryName = await this.getCategoryName(info.categoryId);
         return {
           categoryId: info.categoryId,
+          categoryName: categoryName,
           confidence: Math.min(0.95, info.confidence + (info.usageCount * 0.01)),
           reason: `Exact merchant match: ${merchant}`,
           merchantInfo: { name: merchant, usageCount: info.usageCount }
@@ -155,7 +227,7 @@ class IntelligentCategorizationService {
     }
 
     // Check for partial matches using keywords
-    let bestMatch = { categoryId: null, confidence: 0.0, reason: '', merchantInfo: null };
+    let bestMatch = { categoryId: null, categoryName: 'Unknown', confidence: 0.0, reason: '', merchantInfo: null };
     
     for (const keyword of keywords) {
       if (keyword.length < 3) continue;
@@ -164,24 +236,32 @@ class IntelligentCategorizationService {
         if (merchant.includes(keyword) || keyword.includes(merchant)) {
           const confidence = Math.min(0.8, info.confidence * 0.8 + (info.usageCount * 0.005));
           if (confidence > bestMatch.confidence) {
+            const categoryName = await this.getCategoryName(info.categoryId);
             bestMatch = {
               categoryId: info.categoryId,
+              categoryName: categoryName,
               confidence,
-              reason: `Partial merchant match: ${keyword} -> ${merchant}`,
+              reason: `Partial merchant match: ${keyword} in ${merchant}`,
               merchantInfo: { name: merchant, usageCount: info.usageCount }
             };
           }
         }
       }
     }
-
-    // Check vendor database for more comprehensive matching
-    const vendorMatch = await this.findVendorMatch(description, companyId);
-    if (vendorMatch && vendorMatch.confidence > bestMatch.confidence) {
-      return vendorMatch;
-    }
-
+    
     return bestMatch;
+  }
+
+  // Get category name by ID
+  async getCategoryName(categoryId) {
+    if (!categoryId) return 'Unknown';
+    
+    return new Promise((resolve, reject) => {
+      db.get('SELECT name FROM categories WHERE id = ?', [categoryId], (err, row) => {
+        if (err) reject(err);
+        else resolve(row ? row.name : 'Unknown');
+      });
+    });
   }
 
   // Find vendor match from vendor database
@@ -268,115 +348,190 @@ class IntelligentCategorizationService {
     });
   }
 
-  // Categorize by description keywords
+  // Categorize by keywords in description
   async categorizeByKeywords(description, companyId) {
     const keywords = this.extractKeywords(description);
-    let bestMatch = { categoryId: null, confidence: 0.0, reason: '' };
-
+    
+    let bestMatch = { categoryId: null, categoryName: 'Unknown', confidence: 0.0, reason: '' };
+    
     for (const keyword of keywords) {
-      if (this.categoryPatterns.has(keyword)) {
-        const info = this.categoryPatterns.get(keyword);
-        const confidence = Math.min(0.8, info.confidence + (info.usageCount * 0.005));
-        
-        if (confidence > bestMatch.confidence) {
-          bestMatch = {
-            categoryId: info.categoryId,
-            confidence,
-            reason: `Keyword match: ${keyword}`
-          };
+      if (keyword.length < 3) continue;
+      
+      for (const [pattern, info] of this.categoryPatterns) {
+        if (pattern.includes(keyword) || keyword.includes(pattern)) {
+          const confidence = Math.min(0.7, info.confidence * 0.7 + (info.usageCount * 0.003));
+          if (confidence > bestMatch.confidence) {
+            const categoryName = await this.getCategoryName(info.categoryId);
+            bestMatch = {
+              categoryId: info.categoryId,
+              categoryName: categoryName,
+              confidence,
+              reason: `Keyword pattern match: ${keyword} -> ${pattern}`
+            };
+          }
         }
       }
     }
-
+    
     return bestMatch;
   }
 
   // Categorize by amount range patterns
   async categorizeByAmountRange(amount, companyId) {
-    return new Promise((resolve, reject) => {
+    // Get amount-based patterns from database
+    const patterns = await new Promise((resolve, reject) => {
       db.all(`
-        SELECT cp.*, c.name as category_name
-        FROM categorization_patterns cp
-        JOIN categories c ON cp.category_id = c.id
-        WHERE cp.company_id = ? AND cp.pattern_type = 'amount_range'
-        ORDER BY cp.confidence_score DESC
-      `, [companyId], (err, patterns) => {
-        if (err) {
-          reject(err);
-          return;
-        }
-
-        let bestMatch = { categoryId: null, confidence: 0.0, reason: '' };
-
-        for (const pattern of patterns) {
-          try {
-            const range = JSON.parse(pattern.pattern_value);
-            const absAmount = Math.abs(amount);
-            
-            if (absAmount >= range.min && absAmount <= range.max) {
-              const confidence = Math.min(0.6, pattern.confidence_score / 100 + (pattern.usage_count * 0.002));
-              
-              if (confidence > bestMatch.confidence) {
-                bestMatch = {
-                  categoryId: pattern.category_id,
-                  confidence,
-                  reason: `Amount range $${range.min}-$${range.max}`
-                };
-              }
-            }
-          } catch (e) {
-            // Invalid JSON in pattern_value, skip
-          }
-        }
-
-        resolve(bestMatch);
+        SELECT DISTINCT category_id, 
+               MIN(amount) as min_amount, 
+               MAX(amount) as max_amount,
+               COUNT(*) as frequency,
+               AVG(amount) as avg_amount
+        FROM transactions 
+        WHERE company_id = ? AND category_id IS NOT NULL
+        GROUP BY category_id
+        HAVING frequency >= 3
+        ORDER BY frequency DESC
+      `, [companyId], (err, rows) => {
+        if (err) reject(err);
+        else resolve(rows);
       });
     });
+
+    let bestMatch = { categoryId: null, categoryName: 'Unknown', confidence: 0.0, reason: '' };
+    
+    for (const pattern of patterns) {
+      if (amount >= pattern.min_amount && amount <= pattern.max_amount) {
+        const deviation = Math.abs(amount - pattern.avg_amount) / pattern.avg_amount;
+        const confidence = Math.max(0.3, 0.8 - deviation);
+        
+        if (confidence > bestMatch.confidence) {
+          const categoryName = await this.getCategoryName(pattern.category_id);
+          bestMatch = {
+            categoryId: pattern.category_id,
+            categoryName: categoryName,
+            confidence,
+            reason: `Amount range match: $${pattern.min_amount}-${pattern.max_amount} (${pattern.frequency} transactions)`
+          };
+        }
+      }
+    }
+    
+    return bestMatch;
   }
 
   // Categorize by historical patterns
   async categorizeByHistoricalPattern(transaction, companyId) {
-    return new Promise((resolve, reject) => {
-      // Look for similar transactions in the past
+    const description = transaction.description || '';
+    const amount = transaction.amount || 0;
+    
+    // Find similar transactions from history
+    const similarTransactions = await new Promise((resolve, reject) => {
       db.all(`
-        SELECT t.category_id, c.name as category_name, COUNT(*) as frequency
-        FROM transactions t
-        JOIN categories c ON t.category_id = c.id
-        WHERE t.company_id = ? 
-        AND t.category_id IS NOT NULL
-        AND (
-          LOWER(t.description) LIKE ? 
-          OR ABS(t.amount - ?) < 1.0
-          OR t.description LIKE ?
-        )
-        GROUP BY t.category_id
-        ORDER BY frequency DESC, t.created_at DESC
+        SELECT category_id, COUNT(*) as frequency, AVG(amount) as avg_amount
+        FROM transactions 
+        WHERE company_id = ? 
+          AND category_id IS NOT NULL
+          AND (
+            LOWER(description) LIKE ? 
+            OR ABS(amount - ?) < 5
+          )
+        GROUP BY category_id
+        HAVING frequency >= 2
+        ORDER BY frequency DESC, avg_amount DESC
         LIMIT 5
-      `, [
-        companyId,
-        `%${transaction.description.toLowerCase().substring(0, 20)}%`,
-        transaction.amount,
-        `%${this.extractKeywords(transaction.description).slice(0, 2).join('%')}%`
-      ], (err, results) => {
-        if (err) {
-          reject(err);
-          return;
-        }
-
-        if (results.length === 0) {
-          resolve({ categoryId: null, confidence: 0.0, reason: '' });
-          return;
-        }
-
-        const topResult = results[0];
-        const confidence = Math.min(0.7, (topResult.frequency / 10) + 0.3);
-        
-        resolve({
-          categoryId: topResult.category_id,
-          confidence,
-          reason: `Historical pattern (${topResult.frequency} similar transactions)`
-        });
+      `, [companyId, `%${description.toLowerCase()}%`, amount], (err, rows) => {
+        if (err) reject(err);
+        else resolve(rows);
       });
+    });
+
+    if (similarTransactions.length === 0) {
+      return { categoryId: null, categoryName: 'Unknown', confidence: 0.0, reason: 'No historical patterns found' };
+    }
+
+    const topResult = similarTransactions[0];
+    const categoryName = await this.getCategoryName(topResult.category_id);
+    
+    return {
+      categoryId: topResult.category_id,
+      categoryName: categoryName,
+      confidence: Math.min(0.9, 0.5 + (topResult.frequency * 0.1)),
+      reason: `Historical pattern (${topResult.frequency} similar transactions)`
+    };
+  }
+
+  // Detect software and subscription patterns
+  async detectSoftwareSubscription(description) {
+    const normalizedDesc = description.toLowerCase();
+    const words = normalizedDesc.split(/\s+/);
+    
+    let bestMatch = { confidence: 0, categoryName: 'Unknown', categoryId: null, reason: '' };
+    
+    // Check software patterns
+    for (const [pattern, info] of this.softwarePatterns) {
+      if (normalizedDesc.includes(pattern)) {
+        if (info.confidence > bestMatch.confidence) {
+          bestMatch = {
+            confidence: info.confidence,
+            categoryName: info.categoryName,
+            categoryId: null, // Will be resolved later
+            reason: `Matched software pattern: ${pattern}`
+          };
+        }
+      }
+    }
+    
+    // Check subscription patterns
+    for (const [pattern, info] of this.subscriptionPatterns) {
+      if (normalizedDesc.includes(pattern)) {
+        if (info.confidence > bestMatch.confidence) {
+          bestMatch = {
+            confidence: info.confidence,
+            categoryName: info.categoryName,
+            categoryId: null, // Will be resolved later
+            reason: `Matched subscription pattern: ${pattern}`
+          };
+        }
+      }
+    }
+    
+    // Resolve category ID
+    if (bestMatch.categoryName !== 'Unknown') {
+      const categoryId = await this.resolveCategoryId(bestMatch.categoryName);
+      bestMatch.categoryId = categoryId;
+    }
+    
+    return bestMatch;
+  }
+
+  // Resolve category ID by name
+  async resolveCategoryId(categoryName) {
+    return new Promise((resolve, reject) => {
+      db.get('SELECT id FROM categories WHERE name = ?', [categoryName], (err, row) => {
+        if (err) reject(err);
+        else resolve(row ? row.id : null);
+      });
+    });
+  }
+
+  // Get or create default category
+  async getOrCreateDefaultCategory(companyId, categoryName) {
+    return new Promise((resolve, reject) => {
+      // First try to find existing category
+      db.get('SELECT id, name FROM categories WHERE company_id = ? AND name = ?', 
+        [companyId, categoryName], (err, row) => {
+          if (err) reject(err);
+          else if (row) {
+            resolve(row);
+          } else {
+            // Create new category
+            db.run('INSERT INTO categories (company_id, name) VALUES (?, ?)', 
+              [companyId, categoryName], function(err) {
+                if (err) reject(err);
+                else resolve({ id: this.lastID, name: categoryName });
+              });
+          }
+        });
     });
   }
 

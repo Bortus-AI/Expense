@@ -301,7 +301,10 @@ const Transactions = () => {
     });
 
     try {
+      console.log('Starting AI analysis for transaction:', transaction.id);
       const response = await aiAPI.comprehensiveAnalysis(transaction.id);
+      console.log('AI analysis response:', response.data);
+      
       setAiAnalysisModal(prev => ({
         ...prev,
         analysis: response.data.analysis,
@@ -309,7 +312,8 @@ const Transactions = () => {
       }));
     } catch (error) {
       console.error('Error performing AI analysis:', error);
-      toast.error('Error performing AI analysis');
+      console.error('Error details:', error.response?.data);
+      toast.error(`Error performing AI analysis: ${error.response?.data?.error || error.message}`);
       setAiAnalysisModal(prev => ({
         ...prev,
         loading: false
@@ -346,8 +350,8 @@ const Transactions = () => {
       const response = await aiAPI.analyzeTransactionForFraud(transaction.id);
       const fraudResult = response.data.fraudAnalysis;
       
-      if (fraudResult.requiresReview) {
-        toast.warning(`Fraud alert: ${fraudResult.alerts.length} suspicious indicators detected`);
+      if (fraudResult?.requiresReview) {
+        toast.warning(`Fraud alert: ${fraudResult.alerts?.length || 0} suspicious indicators detected`);
       } else {
         toast.success('Transaction appears normal');
       }
@@ -362,8 +366,8 @@ const Transactions = () => {
       const response = await aiAPI.checkTransactionDuplicates(transaction.id);
       const duplicateResult = response.data.duplicateAnalysis;
       
-      if (duplicateResult.isDuplicate) {
-        toast.warning(`Duplicate detected: ${duplicateResult.duplicates.length} similar transactions found`);
+      if (duplicateResult?.isDuplicate) {
+        toast.warning(`Duplicate detected: ${duplicateResult.duplicates?.length || 0} similar transactions found`);
       } else {
         toast.success('No duplicates found');
       }
@@ -853,109 +857,166 @@ const Transactions = () => {
                   {aiAnalysisModal.analysis.categorization && (
                     <div className="analysis-section">
                       <h4>🤖 Intelligent Categorization</h4>
-                      <div className="analysis-item">
-                        <strong>Predicted Category:</strong> {aiAnalysisModal.analysis.categorization.predictedCategory}
-                        <span className={`confidence-badge ${aiAnalysisModal.analysis.categorization.confidence > 0.7 ? 'high' : aiAnalysisModal.analysis.categorization.confidence > 0.4 ? 'medium' : 'low'}`}>
-                          {(aiAnalysisModal.analysis.categorization.confidence * 100).toFixed(1)}% confidence
-                        </span>
-                      </div>
-                      <div className="feedback-section">
-                        <label>Was this prediction correct?</label>
-                        <div className="feedback-buttons">
-                          <button 
-                            className="btn btn-sm btn-success"
-                            onClick={() => handleCategorizationFeedback(
-                              aiAnalysisModal.transaction.id,
-                              aiAnalysisModal.transaction.category_id,
-                              aiAnalysisModal.analysis.categorization.predictedCategoryId,
-                              aiAnalysisModal.analysis.categorization.confidence
-                            )}
-                          >
-                            ✅ Yes
-                          </button>
-                          <button 
-                            className="btn btn-sm btn-danger"
-                            onClick={() => handleCategorizationFeedback(
-                              aiAnalysisModal.transaction.id,
-                              aiAnalysisModal.transaction.category_id,
-                              aiAnalysisModal.analysis.categorization.predictedCategoryId,
-                              aiAnalysisModal.analysis.categorization.confidence
-                            )}
-                          >
-                            ❌ No
-                          </button>
+                      {aiAnalysisModal.analysis.categorization.error ? (
+                        <div className="error-message">
+                          <strong>Error:</strong> {aiAnalysisModal.analysis.categorization.error}
+                          {aiAnalysisModal.analysis.categorization.details && (
+                            <p>Details: {aiAnalysisModal.analysis.categorization.details}</p>
+                          )}
                         </div>
-                      </div>
+                      ) : (
+                        <>
+                          <div className="analysis-item">
+                            <strong>Predicted Category:</strong> {aiAnalysisModal.analysis.categorization.predictedCategory || 'Unknown'}
+                            <span className={`confidence-badge ${(aiAnalysisModal.analysis.categorization.confidence || 0) > 0.7 ? 'high' : (aiAnalysisModal.analysis.categorization.confidence || 0) > 0.4 ? 'medium' : 'low'}`}>
+                              {((aiAnalysisModal.analysis.categorization.confidence || 0) * 100).toFixed(1)}% confidence
+                            </span>
+                          </div>
+                          <div className="feedback-section">
+                            <label>Was this prediction correct?</label>
+                            <div className="feedback-buttons">
+                              <button 
+                                className="btn btn-sm btn-success"
+                                onClick={() => handleCategorizationFeedback(
+                                  aiAnalysisModal.transaction.id,
+                                  aiAnalysisModal.transaction.category_id,
+                                  aiAnalysisModal.analysis.categorization.predictedCategoryId,
+                                  aiAnalysisModal.analysis.categorization.confidence
+                                )}
+                              >
+                                ✅ Yes
+                              </button>
+                              <button 
+                                className="btn btn-sm btn-danger"
+                                onClick={() => handleCategorizationFeedback(
+                                  aiAnalysisModal.transaction.id,
+                                  aiAnalysisModal.transaction.category_id,
+                                  aiAnalysisModal.analysis.categorization.predictedCategoryId,
+                                  aiAnalysisModal.analysis.categorization.confidence
+                                )}
+                              >
+                                ❌ No
+                              </button>
+                            </div>
+                          </div>
+                        </>
+                      )}
                     </div>
                   )}
 
                   {/* Fraud Detection */}
-                  {aiAnalysisModal.analysis.fraud && (
+                  {aiAnalysisModal.analysis.fraudAnalysis && (
                     <div className="analysis-section">
                       <h4>🚨 Fraud Detection</h4>
-                      <div className={`risk-indicator ${aiAnalysisModal.analysis.fraud.riskLevel}`}>
-                        Risk Level: {aiAnalysisModal.analysis.fraud.riskLevel.toUpperCase()}
-                      </div>
-                      {aiAnalysisModal.analysis.fraud.alerts && aiAnalysisModal.analysis.fraud.alerts.length > 0 && (
-                        <div className="alerts-list">
-                          <strong>Alerts:</strong>
-                          <ul>
-                            {aiAnalysisModal.analysis.fraud.alerts.map((alert, index) => (
-                              <li key={index}>{alert}</li>
-                            ))}
-                          </ul>
+                      {aiAnalysisModal.analysis.fraudAnalysis.error ? (
+                        <div className="error-message">
+                          <strong>Error:</strong> {aiAnalysisModal.analysis.fraudAnalysis.error}
+                          {aiAnalysisModal.analysis.fraudAnalysis.details && (
+                            <p>Details: {aiAnalysisModal.analysis.fraudAnalysis.details}</p>
+                          )}
                         </div>
+                      ) : (
+                        <>
+                          <div className={`risk-indicator ${aiAnalysisModal.analysis.fraudAnalysis.riskLevel || 'unknown'}`}>
+                            Risk Level: {(aiAnalysisModal.analysis.fraudAnalysis.riskLevel || 'unknown').toUpperCase()}
+                          </div>
+                          {aiAnalysisModal.analysis.fraudAnalysis.alerts && aiAnalysisModal.analysis.fraudAnalysis.alerts.length > 0 && (
+                            <div className="alerts-list">
+                              <strong>Alerts:</strong>
+                              <ul>
+                                {aiAnalysisModal.analysis.fraudAnalysis.alerts.map((alert, index) => (
+                                  <li key={index}>
+                                    {typeof alert === 'string' ? alert : `${alert.alert_type || 'Alert'}: ${alert.description || 'No description'} (Risk: ${alert.risk_score || 'Unknown'})`}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                   )}
 
                   {/* Duplicate Detection */}
-                  {aiAnalysisModal.analysis.duplicates && (
+                  {aiAnalysisModal.analysis.duplicateAnalysis && (
                     <div className="analysis-section">
                       <h4>🔍 Duplicate Detection</h4>
-                      {aiAnalysisModal.analysis.duplicates.isDuplicate ? (
-                        <div className="duplicate-warning">
-                          <strong>⚠️ Potential duplicate detected</strong>
-                          <p>Found {aiAnalysisModal.analysis.duplicates.similarTransactions?.length || 0} similar transactions</p>
+                      {aiAnalysisModal.analysis.duplicateAnalysis.error ? (
+                        <div className="error-message">
+                          <strong>Error:</strong> {aiAnalysisModal.analysis.duplicateAnalysis.error}
+                          {aiAnalysisModal.analysis.duplicateAnalysis.details && (
+                            <p>Details: {aiAnalysisModal.analysis.duplicateAnalysis.details}</p>
+                          )}
                         </div>
                       ) : (
-                        <div className="no-duplicate">
-                          <strong>✅ No duplicates found</strong>
-                        </div>
+                        <>
+                          {aiAnalysisModal.analysis.duplicateAnalysis.isDuplicate ? (
+                            <div className="duplicate-warning">
+                              <strong>⚠️ Potential duplicate detected</strong>
+                              <p>Found {aiAnalysisModal.analysis.duplicateAnalysis.similarTransactions?.length || 0} similar transactions</p>
+                            </div>
+                          ) : (
+                            <div className="no-duplicate">
+                              <strong>✅ No duplicates found</strong>
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                   )}
 
                   {/* Recurring Patterns */}
-                  {aiAnalysisModal.analysis.recurring && (
+                  {aiAnalysisModal.analysis.recurringAnalysis && (
                     <div className="analysis-section">
                       <h4>📅 Recurring Patterns</h4>
-                      {aiAnalysisModal.analysis.recurring.hasPattern ? (
-                        <div className="pattern-info">
-                          <strong>Pattern detected:</strong> {aiAnalysisModal.analysis.recurring.patternDescription}
-                          <p>Frequency: {aiAnalysisModal.analysis.recurring.frequency}</p>
+                      {aiAnalysisModal.analysis.recurringAnalysis.error ? (
+                        <div className="error-message">
+                          <strong>Error:</strong> {aiAnalysisModal.analysis.recurringAnalysis.error}
+                          {aiAnalysisModal.analysis.recurringAnalysis.details && (
+                            <p>Details: {aiAnalysisModal.analysis.recurringAnalysis.details}</p>
+                          )}
                         </div>
                       ) : (
-                        <div className="no-pattern">
-                          <strong>No recurring pattern detected</strong>
-                        </div>
+                        <>
+                          {aiAnalysisModal.analysis.recurringAnalysis.hasPattern ? (
+                            <div className="pattern-info">
+                              <strong>Pattern detected:</strong> {aiAnalysisModal.analysis.recurringAnalysis.patternDescription || 'Unknown pattern'}
+                              <p>Frequency: {aiAnalysisModal.analysis.recurringAnalysis.frequency || 'Unknown'}</p>
+                            </div>
+                          ) : (
+                            <div className="no-pattern">
+                              <strong>No recurring pattern detected</strong>
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                   )}
 
                   {/* Calendar Correlation */}
-                  {aiAnalysisModal.analysis.calendar && (
+                  {aiAnalysisModal.analysis.calendarAnalysis && (
                     <div className="analysis-section">
                       <h4>📆 Calendar Correlation</h4>
-                      {aiAnalysisModal.analysis.calendar.hasCorrelation ? (
-                        <div className="correlation-info">
-                          <strong>Calendar event correlation found</strong>
-                          <p>{aiAnalysisModal.analysis.calendar.correlationDescription}</p>
+                      {aiAnalysisModal.analysis.calendarAnalysis.error ? (
+                        <div className="error-message">
+                          <strong>Error:</strong> {aiAnalysisModal.analysis.calendarAnalysis.error}
+                          {aiAnalysisModal.analysis.calendarAnalysis.details && (
+                            <p>Details: {aiAnalysisModal.analysis.calendarAnalysis.details}</p>
+                          )}
                         </div>
                       ) : (
-                        <div className="no-correlation">
-                          <strong>No calendar correlation detected</strong>
-                        </div>
+                        <>
+                          {aiAnalysisModal.analysis.calendarAnalysis.hasCorrelation ? (
+                            <div className="correlation-info">
+                              <strong>Calendar event correlation found</strong>
+                              <p>{aiAnalysisModal.analysis.calendarAnalysis.correlationDescription || 'Unknown correlation'}</p>
+                            </div>
+                          ) : (
+                            <div className="no-correlation">
+                              <strong>No calendar correlation detected</strong>
+                            </div>
+                          )}
+                        </>
                       )}
                     </div>
                   )}
