@@ -58,3 +58,5 @@ Thumbs.db
 # Temporary files
 tmp/
 temp/
+backend/database/expense_matcher.db-wal
+backend/database/expense_matcher.db-shm
