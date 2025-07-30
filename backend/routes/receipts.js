@@ -66,47 +66,47 @@ const findPotentialMatches = (receipt, transactions) => {
       }
     }
 
-         // Merchant/description matching
-     if (receipt.extracted_merchant && transaction.description) {
-       const merchantWords = receipt.extracted_merchant.toLowerCase().split(/\s+/);
-       const descriptionLower = transaction.description.toLowerCase();
-       
-       let wordMatches = 0;
-       let significantWordMatches = 0;
-       
+    // Merchant/description matching
+    if (receipt.extracted_merchant && transaction.description) {
+      const merchantWords = receipt.extracted_merchant.toLowerCase().split(/\s+/);
+      const descriptionLower = transaction.description.toLowerCase();
+      
+      let wordMatches = 0;
+      let significantWordMatches = 0;
+      
        // Also check for exact merchant name match
        if (descriptionLower.includes(receipt.extracted_merchant.toLowerCase())) {
          confidence += 25;
          reasons.push('Exact merchant name match');
        } else {
-         merchantWords.forEach(word => {
-           // Skip common words like "llc", "inc", "corp", etc.
+      merchantWords.forEach(word => {
+        // Skip common words like "llc", "inc", "corp", etc.
            if (word.length > 2 && !['llc', 'inc', 'corp', 'ltd', 'company', 'co', 'name'].includes(word)) {
-             if (descriptionLower.includes(word)) {
-               wordMatches++;
-               // Give extra credit for longer, more specific words
-               if (word.length >= 5) {
-                 significantWordMatches++;
-               }
-             }
-           }
-         });
-         
-         if (wordMatches > 0) {
-           // Base match percentage
-           const baseMatchPercent = (wordMatches / merchantWords.filter(w => 
+          if (descriptionLower.includes(word)) {
+            wordMatches++;
+            // Give extra credit for longer, more specific words
+            if (word.length >= 5) {
+              significantWordMatches++;
+            }
+          }
+        }
+      });
+      
+      if (wordMatches > 0) {
+        // Base match percentage
+        const baseMatchPercent = (wordMatches / merchantWords.filter(w => 
              w.length > 2 && !['llc', 'inc', 'corp', 'ltd', 'company', 'co', 'name'].includes(w)
-           ).length) * 15;
-           
-           // Bonus for significant word matches (like "openai")
-           const bonusPoints = significantWordMatches * 5;
-           
-           const totalMerchantPoints = Math.min(baseMatchPercent + bonusPoints, 20); // Cap at 20 points
-           confidence += totalMerchantPoints;
-           reasons.push(`Merchant keywords match (${wordMatches} words, ${significantWordMatches} significant)`);
+        ).length) * 15;
+        
+        // Bonus for significant word matches (like "openai")
+        const bonusPoints = significantWordMatches * 5;
+        
+        const totalMerchantPoints = Math.min(baseMatchPercent + bonusPoints, 20); // Cap at 20 points
+        confidence += totalMerchantPoints;
+        reasons.push(`Merchant keywords match (${wordMatches} words, ${significantWordMatches} significant)`);
          }
-       }
-     }
+      }
+    }
 
     // Only include if confidence is above threshold
     if (confidence >= 10) {
@@ -298,11 +298,11 @@ async function processReceipt(filePath, originalFilename, companyId) {
       };
     }
 
-    return {
+     return {
       success: true,
       ocrText: ocrText,
       extractedData: extractedData
-    };
+     };
   } catch (error) {
     console.error('Error processing receipt:', error);
     return {
@@ -620,7 +620,7 @@ router.post('/upload', upload.single('receipt'), async (req, res) => {
                 console.log(`✅ Updated receipt ${receiptId} with extracted data, triggering auto-match...`);
                 // Add a small delay to ensure the database update is complete
                 setTimeout(() => {
-                  triggerAutoMatchForReceipt(receiptId);
+            triggerAutoMatchForReceipt(receiptId);
                 }, 100);
               }
             });
@@ -700,20 +700,20 @@ router.delete('/:id', (req, res) => {
     db.run('DELETE FROM matches WHERE receipt_id = ?', [req.params.id], function(err) {
       if (err) {
         return res.status(500).json({ error: 'Error deleting receipt matches: ' + err.message });
-      }
+    }
 
-      // Delete the file if it exists
+    // Delete the file if it exists
       if (row.file_path && fs.existsSync(row.file_path)) {
         try {
-          fs.unlinkSync(row.file_path);
+      fs.unlinkSync(row.file_path);
         } catch (fileErr) {
           console.error('Error deleting file:', fileErr);
           // Continue with database deletion even if file deletion fails
         }
-      }
+    }
 
-      // Delete from database
-      db.run('DELETE FROM receipts WHERE id = ?', [req.params.id], function(err) {
+    // Delete from database
+    db.run('DELETE FROM receipts WHERE id = ?', [req.params.id], function(err) {
         if (err) {
           return res.status(500).json({ error: 'Error deleting receipt: ' + err.message });
         }
@@ -739,9 +739,9 @@ router.get('/:id/view', (req, res) => {
   }
 
   db.get(`SELECT * FROM receipts r ${whereClause}`, queryParams, (err, row) => {
-    if (err) {
-      return res.status(500).json({ error: err.message });
-    }
+      if (err) {
+        return res.status(500).json({ error: err.message });
+      }
     if (!row) {
       return res.status(404).json({ error: 'Receipt not found or access denied' });
     }
@@ -997,4 +997,4 @@ router.post('/trigger-auto-match-all', (req, res) => {
   });
 });
 
-module.exports = router;
+module.exports = router; 

@@ -16,6 +16,7 @@ import ReceiptsScreen from '../screens/main/ReceiptsScreen';
 import CameraScreen from '../screens/main/CameraScreen';
 import MatchesScreen from '../screens/main/MatchesScreen';
 import ProfileScreen from '../screens/main/ProfileScreen';
+import SettingsScreen from '../screens/main/SettingsScreen';
 
 // Loading Screen
 import LoadingScreen from '../screens/LoadingScreen';
@@ -162,6 +163,20 @@ const MainNavigator = () => {
         component={ProfileScreen}
         options={{
           title: 'Profile',
+          headerStyle: {
+            backgroundColor: '#667eea',
+          },
+          headerTintColor: '#ffffff',
+          headerTitleStyle: {
+            fontWeight: 'bold',
+          },
+        }}
+      />
+      <Stack.Screen 
+        name="Settings" 
+        component={SettingsScreen}
+        options={{
+          title: 'Settings',
           headerStyle: {
             backgroundColor: '#667eea',
           },

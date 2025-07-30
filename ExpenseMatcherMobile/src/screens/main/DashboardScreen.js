@@ -9,10 +9,12 @@ import {
   Alert,
 } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import { format } from 'date-fns';
 
 const DashboardScreen = ({ navigation }) => {
   const { user, currentCompany, getTransactions, getReceipts, getMatches, logout } = useAuth();
+  const { theme } = useTheme();
   const [stats, setStats] = useState({
     totalTransactions: 0,
     totalReceipts: 0,
@@ -70,6 +72,171 @@ const DashboardScreen = ({ navigation }) => {
     );
   };
 
+  // Create themed styles
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: theme.spacing.lg,
+      backgroundColor: theme.colors.surface,
+    },
+    greeting: {
+      ...theme.typography.h5,
+      color: theme.colors.text,
+      fontWeight: 'bold',
+    },
+    company: {
+      ...theme.typography.body2,
+      color: theme.colors.textLight,
+      marginTop: 2,
+    },
+    headerButtons: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    settingsButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: theme.colors.borderLight,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: theme.spacing.sm,
+    },
+    settingsText: {
+      fontSize: 20,
+    },
+    logoutButton: {
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      backgroundColor: theme.colors.error,
+      borderRadius: theme.borderRadius.md,
+    },
+    logoutText: {
+      ...theme.typography.caption,
+      color: theme.colors.surface,
+      fontWeight: '600',
+    },
+    statsContainer: {
+      padding: theme.spacing.lg,
+    },
+    statsRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginBottom: theme.spacing.md,
+    },
+    statCard: {
+      flex: 1,
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.borderRadius.lg,
+      padding: theme.spacing.lg,
+      marginHorizontal: theme.spacing.sm,
+      alignItems: 'center',
+      ...theme.shadows.md,
+    },
+    primaryCard: {
+      backgroundColor: theme.colors.primary,
+    },
+    secondaryCard: {
+      backgroundColor: theme.colors.secondary,
+    },
+    warningCard: {
+      backgroundColor: theme.colors.warning,
+    },
+    successCard: {
+      backgroundColor: theme.colors.success,
+    },
+    statNumber: {
+      ...theme.typography.h3,
+      color: theme.colors.surface,
+      fontWeight: 'bold',
+      marginBottom: theme.spacing.xs,
+    },
+    statLabel: {
+      ...theme.typography.caption,
+      color: theme.colors.surface,
+      textAlign: 'center',
+    },
+    quickActions: {
+      backgroundColor: theme.colors.surface,
+      margin: theme.spacing.lg,
+      borderRadius: theme.borderRadius.lg,
+      padding: theme.spacing.lg,
+      ...theme.shadows.sm,
+    },
+    sectionTitle: {
+      ...theme.typography.h6,
+      color: theme.colors.text,
+      marginBottom: theme.spacing.md,
+    },
+    actionRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+    },
+    actionButton: {
+      flex: 1,
+      backgroundColor: theme.colors.borderLight,
+      borderRadius: theme.borderRadius.md,
+      padding: theme.spacing.md,
+      marginHorizontal: theme.spacing.xs,
+      alignItems: 'center',
+    },
+    actionIcon: {
+      fontSize: 24,
+      marginBottom: theme.spacing.xs,
+    },
+    actionText: {
+      ...theme.typography.caption,
+      color: theme.colors.text,
+      textAlign: 'center',
+    },
+    recentActivity: {
+      backgroundColor: theme.colors.surface,
+      margin: theme.spacing.lg,
+      borderRadius: theme.borderRadius.lg,
+      padding: theme.spacing.lg,
+      ...theme.shadows.sm,
+    },
+    activityItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingVertical: theme.spacing.sm,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.borderLight,
+    },
+    activityIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: theme.colors.borderLight,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: theme.spacing.md,
+    },
+    activityContent: {
+      flex: 1,
+    },
+    activityTitle: {
+      ...theme.typography.body2,
+      color: theme.colors.text,
+      fontWeight: '500',
+    },
+    activitySubtitle: {
+      ...theme.typography.caption,
+      color: theme.colors.textLight,
+      marginTop: 2,
+    },
+    activityTime: {
+      ...theme.typography.caption,
+      color: theme.colors.textMuted,
+    },
+  });
+
   return (
     <ScrollView
       style={styles.container}
@@ -87,9 +254,14 @@ const DashboardScreen = ({ navigation }) => {
             <Text style={styles.company}>{currentCompany.name}</Text>
           )}
         </View>
-        <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
-          <Text style={styles.logoutText}>Logout</Text>
-        </TouchableOpacity>
+        <View style={styles.headerButtons}>
+          <TouchableOpacity style={styles.settingsButton} onPress={() => navigation.navigate('Settings')}>
+            <Text style={styles.settingsText}>⚙️</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+            <Text style={styles.logoutText}>Logout</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Stats Cards */}
@@ -174,11 +346,12 @@ const DashboardScreen = ({ navigation }) => {
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f8f9fa',
-  },
+  // Create themed styles
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+    },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',

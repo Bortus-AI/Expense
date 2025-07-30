@@ -202,15 +202,8 @@ class AuthService {
   }
 
   // API Methods
-  async uploadReceipt(imageUri, fileName) {
+  async uploadReceipt(formData) {
     try {
-      const formData = new FormData();
-      formData.append('receipt', {
-        uri: imageUri,
-        type: 'image/jpeg',
-        name: fileName || 'receipt.jpg'
-      });
-
       const response = await axios.post('/receipts/upload', formData, {
         headers: {
           'Content-Type': 'multipart/form-data',

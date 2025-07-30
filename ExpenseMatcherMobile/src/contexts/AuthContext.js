@@ -145,9 +145,9 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const uploadReceipt = async (imageUri, fileName) => {
+  const uploadReceipt = async (formData) => {
     try {
-      const result = await AuthService.uploadReceipt(imageUri, fileName);
+      const result = await AuthService.uploadReceipt(formData);
       
       Toast.show({
         type: 'success',
