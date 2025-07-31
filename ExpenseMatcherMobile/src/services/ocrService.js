@@ -4,27 +4,51 @@
  */
 
 import {Platform} from 'react-native';
+import { trackOCRProcessingTime } from './performanceMonitoringService';
 
 // Mock OCR processing function
 export const processReceiptImage = async (imageUri) => {
-  // In a real implementation, you would use an OCR library or API
-  // For example, with react-native-mlkit or a cloud-based OCR service
+  // Record start time
+  const startTime = Date.now();
   
-  // Simulate network delay
-  await new Promise(resolve => setTimeout(resolve, 2000));
-  
-  // Return mock data
-  return {
-    amount: '$42.50',
-    date: '2023-06-15',
-    merchant: 'Starbucks',
-    items: [
-      {name: 'Coffee', price: '$3.50'},
-      {name: 'Pastry', price: '$2.75'},
-      {name: 'Tax', price: '$0.33'},
-    ],
-    rawText: 'Starbucks\n123 Main St\nSeattle, WA\nDate: 2023-06-15\nCoffee $3.50\nPastry $2.75\nTax $0.33\nTotal $42.50',
-  };
+  try {
+    // In a real implementation, you would use an OCR library or API
+    // For example, with react-native-mlkit or a cloud-based OCR service
+    
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Return mock data
+    const result = {
+      amount: '$42.50',
+      date: '2023-06-15',
+      merchant: 'Starbucks',
+      items: [
+        {name: 'Coffee', price: '$3.50'},
+        {name: 'Pastry', price: '$2.75'},
+        {name: 'Tax', price: '$0.33'},
+      ],
+      rawText: 'Starbucks\n123 Main St\nSeattle, WA\nDate: 2023-06-15\nCoffee $3.50\nPastry $2.75\nTax $0.33\nTotal $42.50',
+    };
+    
+    // Record end time and calculate processing time
+    const endTime = Date.now();
+    const processingTime = endTime - startTime;
+    
+    // Track OCR processing time (assuming a fixed accuracy score for mock data)
+    trackOCRProcessingTime(imageUri ? imageUri.length : 0, processingTime, 0.95);
+    
+    return result;
+  } catch (error) {
+    // Record end time and calculate processing time even for errors
+    const endTime = Date.now();
+    const processingTime = endTime - startTime;
+    
+    // Track OCR processing time for errors (with 0 accuracy)
+    trackOCRProcessingTime(imageUri ? imageUri.length : 0, processingTime, 0);
+    
+    throw error;
+  }
 };
 
 // Real OCR implementation would look something like this:

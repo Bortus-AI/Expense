@@ -6,6 +6,9 @@ SQLite.enablePromise(true);
 
 let db;
 
+// Import performance monitoring functions
+import { trackApiResponseTime } from './performanceMonitoringService';
+
 const initDB = async () => {
   try {
     db = await SQLite.openDatabase({
@@ -79,6 +82,38 @@ const createTables = async () => {
       )
     `);
     
+    // Create performance metrics table
+    await db.executeSql(`
+      CREATE TABLE IF NOT EXISTS performance_metrics (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        metricType TEXT,
+        value REAL,
+        metadata TEXT,
+        timestamp TEXT
+      )
+    `);
+    
+    // Create analytics events table
+    await db.executeSql(`
+      CREATE TABLE IF NOT EXISTS analytics_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        eventName TEXT,
+        eventData TEXT,
+        timestamp TEXT
+      )
+    `);
+    
+    // Create error logs table
+    await db.executeSql(`
+      CREATE TABLE IF NOT EXISTS error_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        error TEXT,
+        stackTrace TEXT,
+        context TEXT,
+        timestamp TEXT
+      )
+    `);
+    
     console.log('Tables created successfully');
   } catch (error) {
     console.error('Error creating tables:', error);
@@ -101,6 +136,9 @@ export const saveReceipt = async (receipt) => {
     const { id, merchant, date, amount, category, status, imageUri, localPath } = receipt;
     
     console.log('Executing SQL insert for receipt:', id);
+    // Record start time for performance tracking
+    const startTime = Date.now();
+    
     await database.executeSql(
       `INSERT OR REPLACE INTO receipts
        (id, merchant, date, amount, category, status, imageUri, localPath, createdAt, updatedAt, isSynced, syncAction)
@@ -121,6 +159,13 @@ export const saveReceipt = async (receipt) => {
       ]
     );
     
+    // Record end time and calculate processing time
+    const endTime = Date.now();
+    const processingTime = endTime - startTime;
+    
+    // Track API response time for database operations
+    trackApiResponseTime('database_save_receipt', processingTime);
+    
     console.log('Adding receipt to sync queue:', id);
     // Add to sync queue
     await addToSyncQueue('receipts', id, 'create', receipt);
@@ -137,6 +182,9 @@ export const updateReceipt = async (id, updates) => {
   try {
     const database = await getDB();
     
+    // Record start time for performance tracking
+    const startTime = Date.now();
+    
     // Build dynamic update query
     const fields = Object.keys(updates);
     const values = Object.values(updates);
@@ -146,6 +194,13 @@ export const updateReceipt = async (id, updates) => {
       `UPDATE receipts SET ${setClause}, updatedAt = ? WHERE id = ?`,
       [...values, new Date().toISOString(), id]
     );
+    
+    // Record end time and calculate processing time
+    const endTime = Date.now();
+    const processingTime = endTime - startTime;
+    
+    // Track API response time for database operations
+    trackApiResponseTime('database_update_receipt', processingTime);
     
     // Add to sync queue
     await addToSyncQueue('receipts', id, 'update', updates);
@@ -161,11 +216,21 @@ export const deleteReceipt = async (id) => {
   try {
     const database = await getDB();
     
+    // Record start time for performance tracking
+    const startTime = Date.now();
+    
     // Instead of deleting, mark as deleted for sync purposes
     await database.executeSql(
       `UPDATE receipts SET status = 'deleted', updatedAt = ? WHERE id = ?`,
       [new Date().toISOString(), id]
     );
+    
+    // Record end time and calculate processing time
+    const endTime = Date.now();
+    const processingTime = endTime - startTime;
+    
+    // Track API response time for database operations
+    trackApiResponseTime('database_delete_receipt', processingTime);
     
     // Add to sync queue
     await addToSyncQueue('receipts', id, 'delete', { id });
@@ -180,7 +245,18 @@ export const deleteReceipt = async (id) => {
 export const getReceipts = async () => {
   try {
     const database = await getDB();
+    
+    // Record start time for performance tracking
+    const startTime = Date.now();
+    
     const results = await database.executeSql('SELECT * FROM receipts WHERE status != "deleted" ORDER BY date DESC');
+    
+    // Record end time and calculate processing time
+    const endTime = Date.now();
+    const processingTime = endTime - startTime;
+    
+    // Track API response time for database operations
+    trackApiResponseTime('database_get_receipts', processingTime);
     
     const receipts = [];
     const rows = results[0].rows;
@@ -199,7 +275,18 @@ export const getReceipts = async () => {
 export const getReceiptById = async (id) => {
   try {
     const database = await getDB();
+    
+    // Record start time for performance tracking
+    const startTime = Date.now();
+    
     const results = await database.executeSql('SELECT * FROM receipts WHERE id = ? AND status != "deleted"', [id]);
+    
+    // Record end time and calculate processing time
+    const endTime = Date.now();
+    const processingTime = endTime - startTime;
+    
+    // Track API response time for database operations
+    trackApiResponseTime('database_get_receipt_by_id', processingTime);
     
     if (results[0].rows.length > 0) {
       return results[0].rows.item(0);
@@ -218,10 +305,20 @@ export const saveCategory = async (category) => {
     const database = await getDB();
     const { id, name, color, icon } = category;
     
+    // Record start time for performance tracking
+    const startTime = Date.now();
+    
     await database.executeSql(
       `INSERT OR REPLACE INTO categories (id, name, color, icon, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)`,
       [id, name, color, icon, new Date().toISOString(), new Date().toISOString()]
     );
+    
+    // Record end time and calculate processing time
+    const endTime = Date.now();
+    const processingTime = endTime - startTime;
+    
+    // Track API response time for database operations
+    trackApiResponseTime('database_save_category', processingTime);
     
     // Add to sync queue
     await addToSyncQueue('categories', id, 'create', category);
@@ -236,7 +333,18 @@ export const saveCategory = async (category) => {
 export const getCategories = async () => {
   try {
     const database = await getDB();
+    
+    // Record start time for performance tracking
+    const startTime = Date.now();
+    
     const results = await database.executeSql('SELECT * FROM categories ORDER BY name');
+    
+    // Record end time and calculate processing time
+    const endTime = Date.now();
+    const processingTime = endTime - startTime;
+    
+    // Track API response time for database operations
+    trackApiResponseTime('database_get_categories', processingTime);
     
     const categories = [];
     const rows = results[0].rows;
@@ -257,10 +365,20 @@ export const saveSetting = async (key, value) => {
   try {
     const database = await getDB();
     
+    // Record start time for performance tracking
+    const startTime = Date.now();
+    
     await database.executeSql(
       `INSERT OR REPLACE INTO settings (key, value, updatedAt) VALUES (?, ?, ?)`,
       [key, JSON.stringify(value), new Date().toISOString()]
     );
+    
+    // Record end time and calculate processing time
+    const endTime = Date.now();
+    const processingTime = endTime - startTime;
+    
+    // Track API response time for database operations
+    trackApiResponseTime('database_save_setting', processingTime);
     
     return { key, value };
   } catch (error) {
@@ -272,7 +390,18 @@ export const saveSetting = async (key, value) => {
 export const getSetting = async (key) => {
   try {
     const database = await getDB();
+    
+    // Record start time for performance tracking
+    const startTime = Date.now();
+    
     const results = await database.executeSql('SELECT value FROM settings WHERE key = ?', [key]);
+    
+    // Record end time and calculate processing time
+    const endTime = Date.now();
+    const processingTime = endTime - startTime;
+    
+    // Track API response time for database operations
+    trackApiResponseTime('database_get_setting', processingTime);
     
     if (results[0].rows.length > 0) {
       return JSON.parse(results[0].rows.item(0).value);
@@ -290,10 +419,20 @@ export const addToSyncQueue = async (tableName, recordId, action, data) => {
   try {
     const database = await getDB();
     
+    // Record start time for performance tracking
+    const startTime = Date.now();
+    
     await database.executeSql(
       `INSERT INTO sync_queue (tableName, recordId, action, data, timestamp) VALUES (?, ?, ?, ?, ?)`,
       [tableName, recordId, action, JSON.stringify(data), new Date().toISOString()]
     );
+    
+    // Record end time and calculate processing time
+    const endTime = Date.now();
+    const processingTime = endTime - startTime;
+    
+    // Track API response time for database operations
+    trackApiResponseTime('database_add_to_sync_queue', processingTime);
     
     return true;
   } catch (error) {
@@ -305,9 +444,20 @@ export const addToSyncQueue = async (tableName, recordId, action, data) => {
 export const getPendingSyncItems = async () => {
   try {
     const database = await getDB();
+    
+    // Record start time for performance tracking
+    const startTime = Date.now();
+    
     const results = await database.executeSql(
       'SELECT * FROM sync_queue WHERE status = "pending" ORDER BY timestamp ASC'
     );
+    
+    // Record end time and calculate processing time
+    const endTime = Date.now();
+    const processingTime = endTime - startTime;
+    
+    // Track API response time for database operations
+    trackApiResponseTime('database_get_pending_sync_items', processingTime);
     
     const items = [];
     const rows = results[0].rows;
@@ -329,10 +479,20 @@ export const updateSyncItemStatus = async (id, status) => {
   try {
     const database = await getDB();
     
+    // Record start time for performance tracking
+    const startTime = Date.now();
+    
     await database.executeSql(
       `UPDATE sync_queue SET status = ?, retryCount = retryCount + 1 WHERE id = ?`,
       [status, id]
     );
+    
+    // Record end time and calculate processing time
+    const endTime = Date.now();
+    const processingTime = endTime - startTime;
+    
+    // Track API response time for database operations
+    trackApiResponseTime('database_update_sync_item_status', processingTime);
     
     return true;
   } catch (error) {
@@ -345,7 +505,17 @@ export const removeSyncItem = async (id) => {
   try {
     const database = await getDB();
     
+    // Record start time for performance tracking
+    const startTime = Date.now();
+    
     await database.executeSql('DELETE FROM sync_queue WHERE id = ?', [id]);
+    
+    // Record end time and calculate processing time
+    const endTime = Date.now();
+    const processingTime = endTime - startTime;
+    
+    // Track API response time for database operations
+    trackApiResponseTime('database_remove_sync_item', processingTime);
     
     return true;
   } catch (error) {
@@ -358,10 +528,20 @@ export const markReceiptAsSynced = async (id) => {
   try {
     const database = await getDB();
     
+    // Record start time for performance tracking
+    const startTime = Date.now();
+    
     await database.executeSql(
       'UPDATE receipts SET isSynced = 1, syncAction = NULL WHERE id = ?',
       [id]
     );
+    
+    // Record end time and calculate processing time
+    const endTime = Date.now();
+    const processingTime = endTime - startTime;
+    
+    // Track API response time for database operations
+    trackApiResponseTime('database_mark_receipt_as_synced', processingTime);
     
     return true;
   } catch (error) {
@@ -373,7 +553,18 @@ export const markReceiptAsSynced = async (id) => {
 // Database initialization
 export const initDatabase = async () => {
   try {
+    // Record start time for performance tracking
+    const startTime = Date.now();
+    
     await initDB();
+    
+    // Record end time and calculate processing time
+    const endTime = Date.now();
+    const processingTime = endTime - startTime;
+    
+    // Track API response time for database operations
+    trackApiResponseTime('database_init', processingTime);
+    
     console.log('Database initialized successfully');
     return true;
   } catch (error) {
@@ -398,4 +589,13 @@ export default {
   updateSyncItemStatus,
   removeSyncItem,
   markReceiptAsSynced,
+  // Performance metrics operations
+  savePerformanceMetric,
+  getPerformanceMetrics,
+  // Analytics events operations
+  saveAnalyticsEvent,
+  getAnalyticsEvents,
+  // Error logs operations
+  saveErrorLog,
+  getErrorLogs,
 };

@@ -137,4 +137,11 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: deployment-files
-        path: deployment/ 
+        path: deployment/
+        
+    - name: Deploy Script to Bunny Edge Scripting
+      uses: BunnyWay/actions/deploy-script@main
+      with:
+        script_id: 41397
+        file: "script.ts"
+        api_key: ${{ secrets.BUNNY_API_KEY }} 

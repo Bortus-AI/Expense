@@ -5,6 +5,7 @@
 import { getPendingSyncItems, updateSyncItemStatus, removeSyncItem, markReceiptAsSynced, getReceiptById } from './databaseService';
 import { getSecureItem, saveSecureItem } from './encryptionService';
 import Toast from 'react-native-toast-message';
+import { trackSyncProcessingTime } from './performanceMonitoringService';
 
 // Mock API service - in a real app, this would connect to your backend
 const API_BASE_URL = 'https://your-api-url.com/api';
@@ -128,6 +129,9 @@ const checkForConflicts = async (syncItem) => {
 
 // Sync a single item
 const syncItem = async (syncItem) => {
+  // Record start time
+  const startTime = Date.now();
+  
   try {
     const { id, tableName, recordId, action, data } = syncItem;
     console.log('Syncing item:', syncItem);
@@ -194,6 +198,13 @@ const syncItem = async (syncItem) => {
       await markReceiptAsSynced(recordId);
     }
     
+    // Record end time and calculate processing time
+    const endTime = Date.now();
+    const processingTime = endTime - startTime;
+    
+    // Track sync processing time for individual items
+    trackSyncProcessingTime(`sync_${action}`, processingTime, 1);
+    
     return result;
   } catch (error) {
     console.error('Error syncing item:', error);
@@ -207,17 +218,36 @@ const syncItem = async (syncItem) => {
       console.log(`Retry ${syncItem.retryCount + 1} for item ${id}`);
     }
     
+    // Record end time and calculate processing time even for errors
+    const endTime = Date.now();
+    const processingTime = endTime - startTime;
+    
+    // Track sync processing time for errors
+    trackSyncProcessingTime(`sync_${action}_error`, processingTime, 1);
+    
     throw error;
   }
 };
 
 // Process all pending sync items
 export const processSyncQueue = async () => {
+  // Record start time
+  const startTime = Date.now();
+  let processedCount = 0;
+  
   try {
     const pendingItems = await getPendingSyncItems();
     
     if (pendingItems.length === 0) {
       console.log('No pending sync items');
+      
+      // Record end time and calculate processing time
+      const endTime = Date.now();
+      const processingTime = endTime - startTime;
+      
+      // Track sync processing time
+      trackSyncProcessingTime('process_queue', processingTime, 0);
+      
       return { success: true, message: 'No items to sync' };
     }
     
@@ -228,11 +258,19 @@ export const processSyncQueue = async () => {
       try {
         await syncItem(item);
         console.log(`Successfully synced item ${item.id}`);
+        processedCount++;
       } catch (error) {
         console.error(`Failed to sync item ${item.id}:`, error);
         // Continue with other items even if one fails
       }
     }
+    
+    // Record end time and calculate processing time
+    const endTime = Date.now();
+    const processingTime = endTime - startTime;
+    
+    // Track sync processing time
+    trackSyncProcessingTime('process_queue', processingTime, processedCount);
     
     return {
       success: true,
@@ -240,6 +278,13 @@ export const processSyncQueue = async () => {
       processedCount: pendingItems.length
     };
   } catch (error) {
+    // Record end time and calculate processing time even for errors
+    const endTime = Date.now();
+    const processingTime = endTime - startTime;
+    
+    // Track sync processing time for errors
+    trackSyncProcessingTime('process_queue', processingTime, processedCount);
+    
     console.error('Error processing sync queue:', error);
     throw error;
   }
@@ -376,6 +421,9 @@ export const backgroundSync = async () => {
 
 // Manual sync trigger
 export const manualSync = async () => {
+  // Record start time
+  const startTime = Date.now();
+  
   try {
     Toast.show({
       type: 'info',
@@ -391,6 +439,13 @@ export const manualSync = async () => {
       text2: result.message,
     });
     
+    // Record end time and calculate processing time
+    const endTime = Date.now();
+    const processingTime = endTime - startTime;
+    
+    // Track API response time for manual sync
+    trackSyncProcessingTime('manual_sync', processingTime, result.processedCount || 0);
+    
     return result;
   } catch (error) {
     console.error('Error during manual sync:', error);
@@ -400,6 +455,13 @@ export const manualSync = async () => {
       text1: 'Sync Failed',
       text2: 'Failed to sync data. Please try again.',
     });
+    
+    // Record end time and calculate processing time even for errors
+    const endTime = Date.now();
+    const processingTime = endTime - startTime;
+    
+    // Track API response time for manual sync errors
+    trackSyncProcessingTime('manual_sync_error', processingTime, 0);
     
     throw error;
   }

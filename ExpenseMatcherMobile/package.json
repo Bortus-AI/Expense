@@ -29,7 +29,8 @@
     "react-native-ocr": "^3.2.0",
     "axios": "^1.11.0",
     "moment": "^2.29.4",
-    "react-native-paper": "^5.0.0"
+    "react-native-paper": "^5.0.0",
+    "react-native-compressor": "^1.8.0"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",

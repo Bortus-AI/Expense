@@ -49,6 +49,7 @@ The following files have been created for your bunny.net deployment:
 - `.github/workflows/deploy.yml` - GitHub Actions workflow
 - `bunny.json` - Bunny.net configuration
 - `bunny-deploy.json` - Alternative bunny.net config
+- `script.ts` - Bunny Edge Scripting file for performance and security
 - `DEPLOYMENT.md` - Detailed deployment guide
 
 ## 🔧 Build Process
@@ -58,7 +59,8 @@ When bunny.net runs the build, it will:
 1. **Install Dependencies**: `npm install`
 2. **Build Frontend**: `npm run build` (builds React app)
 3. **Prepare Deployment**: Creates deployment structure
-4. **Start Server**: Uses `server.js` as entry point
+4. **Deploy Edge Script**: Uploads TypeScript edge script for optimization
+5. **Start Server**: Uses `server.js` as entry point
 
 ## 📋 Deployment Checklist
 
@@ -66,6 +68,7 @@ Before deploying, ensure:
 
 - [ ] All files are committed to GitHub
 - [ ] Environment variables are set in bunny.net
+- [ ] GitHub secret `BUNNY_API_KEY` is configured for Edge Scripting
 - [ ] Database will be created automatically on first run
 - [ ] Default admin user will be created automatically
 

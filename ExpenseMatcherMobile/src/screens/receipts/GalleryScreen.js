@@ -237,9 +237,20 @@ const GalleryScreen = ({navigation}) => {
     }
   };
 
-  const compressReceiptImage = async (imageUri) => {
-    // Use our utility function for compression
-    return await compressImage(imageUri);
+  const compressReceiptImage = async (imageUri, imageType = 'receipt') => {
+    try {
+      // Use our utility function for compression with optimized settings
+      return await compressImage(imageUri, {
+        quality: 0.8,
+        maxWidth: 1000,
+        maxHeight: 1000,
+        imageType
+      });
+    } catch (error) {
+      console.warn('Failed to compress image, using original:', error);
+      // If compression fails, return the original image URI
+      return imageUri;
+    }
   };
 
   const uploadImage = async (image) => {
@@ -298,7 +309,11 @@ const GalleryScreen = ({navigation}) => {
           }
           
           // Compress image if needed
-          const compressedUri = await compressReceiptImage(image.uri);
+          // Determine image type based on file extension or other criteria
+          const fileType = image.fileName?.split('.').pop().toLowerCase();
+          const imageType = fileType === 'pdf' ? 'document' : 'receipt';
+          
+          const compressedUri = await compressReceiptImage(image.uri, imageType);
           
           // Upload image
           const result = await uploadImage({...image, uri: compressedUri});

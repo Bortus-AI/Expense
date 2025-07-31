@@ -17,6 +17,7 @@ import {request, PERMISSIONS, RESULTS} from 'react-native-permissions';
 import Toast from 'react-native-toast-message';
 import CameraPreview from '../../components/specific/CameraPreview';
 import Icon from 'react-native-vector-icons/MaterialIcons';
+import { compressImage } from '../../utils/imageCompression';
 
 const CameraScreen = ({navigation}) => {
   const [imageUri, setImageUri] = useState(null);
@@ -133,6 +134,17 @@ const CameraScreen = ({navigation}) => {
     console.log('Starting OCR processing for image:', imageUri);
     setIsProcessing(true);
     try {
+      // Compress the image before processing to optimize file size
+      console.log('Compressing image for optimized processing...');
+      const compressedImageUri = await compressImage(imageUri, {
+        quality: 0.8,
+        maxWidth: 1000,
+        maxHeight: 1000,
+        imageType: 'receipt'
+      });
+      
+      console.log('Image compressed successfully:', compressedImageUri);
+      
       // Simulate OCR processing
       // In a real implementation, you would use an OCR library like react-native-mlkit
       // or call your backend API to process the image
@@ -153,10 +165,10 @@ const CameraScreen = ({navigation}) => {
       
       console.log('OCR processing completed, navigating to review screen');
       // Navigate to OCR review screen with the result
-      navigation.navigate('OCRReview', {imageUri, ocrResult: mockOCRResult});
+      navigation.navigate('OCRReview', {imageUri: compressedImageUri, ocrResult: mockOCRResult});
     } catch (error) {
       console.error('OCR Processing Error:', error);
-      Alert.alert('Error', 'Failed to process image. Please try again.');
+      Alert.alert('Error', `Failed to process image: ${error.message}`);
     } finally {
       setIsProcessing(false);
     }
