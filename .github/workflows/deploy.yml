@@ -22,12 +22,13 @@ jobs:
         
     - name: Install dependencies
       run: |
-        npm run install-all
+        npm install
+        cd backend && npm install
+        cd ../frontend && npm install
         
     - name: Build frontend
       run: |
         cd frontend
-        npm install
         npm run build
         
     - name: Prepare deployment files
