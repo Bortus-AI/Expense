@@ -573,6 +573,192 @@ export const initDatabase = async () => {
   }
 };
 
+// Performance metrics operations
+export const savePerformanceMetric = async (metricType, value, metadata = {}) => {
+  try {
+    const database = await getDB();
+    
+    // Record start time for performance tracking
+    const startTime = Date.now();
+    
+    await database.executeSql(
+      `INSERT INTO performance_metrics (metricType, value, metadata, timestamp) VALUES (?, ?, ?, ?)`,
+      [metricType, value, JSON.stringify(metadata), new Date().toISOString()]
+    );
+    
+    // Record end time and calculate processing time
+    const endTime = Date.now();
+    const processingTime = endTime - startTime;
+    
+    // Track API response time for database operations
+    trackApiResponseTime('database_save_performance_metric', processingTime);
+    
+    return true;
+  } catch (error) {
+    console.error('Error saving performance metric:', error);
+    throw error;
+  }
+};
+
+export const getPerformanceMetrics = async (limit = 1000) => {
+  try {
+    const database = await getDB();
+    
+    // Record start time for performance tracking
+    const startTime = Date.now();
+    
+    const results = await database.executeSql(
+      'SELECT * FROM performance_metrics ORDER BY timestamp DESC LIMIT ?',
+      [limit]
+    );
+    
+    // Record end time and calculate processing time
+    const endTime = Date.now();
+    const processingTime = endTime - startTime;
+    
+    // Track API response time for database operations
+    trackApiResponseTime('database_get_performance_metrics', processingTime);
+    
+    const metrics = [];
+    const rows = results[0].rows;
+    
+    for (let i = 0; i < rows.length; i++) {
+      const metric = rows.item(i);
+      metric.metadata = JSON.parse(metric.metadata);
+      metrics.push(metric);
+    }
+    
+    return metrics;
+  } catch (error) {
+    console.error('Error getting performance metrics:', error);
+    throw error;
+  }
+};
+
+// Analytics events operations
+export const saveAnalyticsEvent = async (eventName, eventData = {}) => {
+  try {
+    const database = await getDB();
+    
+    // Record start time for performance tracking
+    const startTime = Date.now();
+    
+    await database.executeSql(
+      `INSERT INTO analytics_events (eventName, eventData, timestamp) VALUES (?, ?, ?)`,
+      [eventName, JSON.stringify(eventData), new Date().toISOString()]
+    );
+    
+    // Record end time and calculate processing time
+    const endTime = Date.now();
+    const processingTime = endTime - startTime;
+    
+    // Track API response time for database operations
+    trackApiResponseTime('database_save_analytics_event', processingTime);
+    
+    return true;
+  } catch (error) {
+    console.error('Error saving analytics event:', error);
+    throw error;
+  }
+};
+
+export const getAnalyticsEvents = async (limit = 1000) => {
+  try {
+    const database = await getDB();
+    
+    // Record start time for performance tracking
+    const startTime = Date.now();
+    
+    const results = await database.executeSql(
+      'SELECT * FROM analytics_events ORDER BY timestamp DESC LIMIT ?',
+      [limit]
+    );
+    
+    // Record end time and calculate processing time
+    const endTime = Date.now();
+    const processingTime = endTime - startTime;
+    
+    // Track API response time for database operations
+    trackApiResponseTime('database_get_analytics_events', processingTime);
+    
+    const events = [];
+    const rows = results[0].rows;
+    
+    for (let i = 0; i < rows.length; i++) {
+      const event = rows.item(i);
+      event.eventData = JSON.parse(event.eventData);
+      events.push(event);
+    }
+    
+    return events;
+  } catch (error) {
+    console.error('Error getting analytics events:', error);
+    throw error;
+  }
+};
+
+// Error logs operations
+export const saveErrorLog = async (error, stackTrace = '', context = {}) => {
+  try {
+    const database = await getDB();
+    
+    // Record start time for performance tracking
+    const startTime = Date.now();
+    
+    await database.executeSql(
+      `INSERT INTO error_logs (error, stackTrace, context, timestamp) VALUES (?, ?, ?, ?)`,
+      [error.message || error, stackTrace, JSON.stringify(context), new Date().toISOString()]
+    );
+    
+    // Record end time and calculate processing time
+    const endTime = Date.now();
+    const processingTime = endTime - startTime;
+    
+    // Track API response time for database operations
+    trackApiResponseTime('database_save_error_log', processingTime);
+    
+    return true;
+  } catch (error) {
+    console.error('Error saving error log:', error);
+    throw error;
+  }
+};
+
+export const getErrorLogs = async (limit = 1000) => {
+  try {
+    const database = await getDB();
+    
+    // Record start time for performance tracking
+    const startTime = Date.now();
+    
+    const results = await database.executeSql(
+      'SELECT * FROM error_logs ORDER BY timestamp DESC LIMIT ?',
+      [limit]
+    );
+    
+    // Record end time and calculate processing time
+    const endTime = Date.now();
+    const processingTime = endTime - startTime;
+    
+    // Track API response time for database operations
+    trackApiResponseTime('database_get_error_logs', processingTime);
+    
+    const errors = [];
+    const rows = results[0].rows;
+    
+    for (let i = 0; i < rows.length; i++) {
+      const error = rows.item(i);
+      error.context = JSON.parse(error.context);
+      errors.push(error);
+    }
+    
+    return errors;
+  } catch (error) {
+    console.error('Error getting error logs:', error);
+    throw error;
+  }
+};
+
 export default {
   initDatabase,
   saveReceipt,

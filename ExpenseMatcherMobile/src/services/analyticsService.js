@@ -1,6 +1,7 @@
 /**
  * Analytics Service
  * Comprehensive analytics tracking for user engagement patterns and feature usage
+ * Enhanced with accuracy tracking and real-time monitoring capabilities
  */
 
 import {
@@ -24,6 +25,12 @@ class AnalyticsService {
     this.featureUsage = {};
     this.sessionStartTime = null;
     this.isInitialized = false;
+    // Enhanced accuracy tracking
+    this.accuracyTracking = {
+      ocrAccuracyHistory: [],
+      llmAccuracyHistory: [],
+      overallAccuracyScore: 0.0
+    };
   }
 
   // Initialize the analytics service
@@ -201,6 +208,84 @@ class AnalyticsService {
     logError(error, context);
   }
 
+  // Track OCR accuracy metrics
+  trackOCRAccuracy(imageSize, processingTime, accuracyScore, accuracyMetrics = null) {
+    const accuracyData = {
+      imageSize,
+      processingTime,
+      accuracyScore,
+      accuracyMetrics,
+      timestamp: new Date().toISOString()
+    };
+
+    // Add to accuracy tracking history
+    this.accuracyTracking.ocrAccuracyHistory.push(accuracyData);
+    
+    // Keep only the last 100 entries
+    if (this.accuracyTracking.ocrAccuracyHistory.length > 100) {
+      this.accuracyTracking.ocrAccuracyHistory = this.accuracyTracking.ocrAccuracyHistory.slice(-100);
+    }
+
+    // Update overall accuracy score
+    this.updateOverallAccuracyScore();
+
+    // Track as an event
+    this.trackEvent('ocr_accuracy', accuracyData);
+  }
+
+  // Track LLM accuracy metrics
+  trackLLMAccuracy(inputLength, processingTime, accuracyScore, accuracyMetrics = null) {
+    const accuracyData = {
+      inputLength,
+      processingTime,
+      accuracyScore,
+      accuracyMetrics,
+      timestamp: new Date().toISOString()
+    };
+
+    // Add to accuracy tracking history
+    this.accuracyTracking.llmAccuracyHistory.push(accuracyData);
+    
+    // Keep only the last 100 entries
+    if (this.accuracyTracking.llmAccuracyHistory.length > 100) {
+      this.accuracyTracking.llmAccuracyHistory = this.accuracyTracking.llmAccuracyHistory.slice(-100);
+    }
+
+    // Update overall accuracy score
+    this.updateOverallAccuracyScore();
+
+    // Track as an event
+    this.trackEvent('llm_accuracy', accuracyData);
+  }
+
+  // Update overall accuracy score based on recent metrics
+  updateOverallAccuracyScore() {
+    // Calculate average OCR accuracy
+    const ocrScores = this.accuracyTracking.ocrAccuracyHistory
+      .map(item => item.accuracyScore)
+      .filter(score => score !== null);
+    
+    const avgOCRAccuracy = ocrScores.length > 0 
+      ? ocrScores.reduce((a, b) => a + b, 0) / ocrScores.length 
+      : 0;
+
+    // Calculate average LLM accuracy
+    const llmScores = this.accuracyTracking.llmAccuracyHistory
+      .map(item => item.accuracyScore)
+      .filter(score => score !== null);
+    
+    const avgLLMAccuracy = llmScores.length > 0 
+      ? llmScores.reduce((a, b) => a + b, 0) / llmScores.length 
+      : 0;
+
+    // Calculate overall accuracy score (weighted average)
+    const totalScores = ocrScores.length + llmScores.length;
+    if (totalScores > 0) {
+      this.accuracyTracking.overallAccuracyScore = 
+        ((avgOCRAccuracy * ocrScores.length) + (avgLLMAccuracy * llmScores.length)) / totalScores;
+    }
+  }
+
   // Save events to storage
   async saveEvents() {
     try {
@@ -240,6 +325,7 @@ class AnalyticsService {
       featureUsage: this.featureUsage,
       userPreferences: this.userPreferences,
       sessionInfo: this.getSessionInfo(),
+      accuracyMetrics: this.getAccuracyMetrics()
     };
 
     return summary;
@@ -286,11 +372,93 @@ class AnalyticsService {
     return this.userPreferences;
   }
 
+  // Get accuracy metrics
+  getAccuracyMetrics() {
+    return {
+      overallAccuracyScore: this.accuracyTracking.overallAccuracyScore,
+      ocrAccuracyHistory: this.accuracyTracking.ocrAccuracyHistory.slice(-10), // Last 10 entries
+      llmAccuracyHistory: this.accuracyTracking.llmAccuracyHistory.slice(-10), // Last 10 entries
+      ocrAccuracyTrend: this.calculateOCRAccuracyTrend(),
+      llmAccuracyTrend: this.calculateLLMAccuracyTrend()
+    };
+  }
+
+  // Calculate OCR accuracy trend
+  calculateOCRAccuracyTrend() {
+    if (this.accuracyTracking.ocrAccuracyHistory.length < 2) {
+      return 'insufficient_data';
+    }
+
+    // Compare last 5 entries with previous 5 entries
+    const recentEntries = this.accuracyTracking.ocrAccuracyHistory.slice(-5);
+    const previousEntries = this.accuracyTracking.ocrAccuracyHistory.slice(-10, -5);
+    
+    if (recentEntries.length === 0 || previousEntries.length === 0) {
+      return 'insufficient_data';
+    }
+
+    const recentAvg = recentEntries
+      .map(item => item.accuracyScore)
+      .filter(score => score !== null)
+      .reduce((a, b) => a + b, 0) / recentEntries.length;
+    
+    const previousAvg = previousEntries
+      .map(item => item.accuracyScore)
+      .filter(score => score !== null)
+      .reduce((a, b) => a + b, 0) / previousEntries.length;
+    
+    if (recentAvg > previousAvg) {
+      return 'improving';
+    } else if (recentAvg < previousAvg) {
+      return 'declining';
+    } else {
+      return 'stable';
+    }
+  }
+
+  // Calculate LLM accuracy trend
+  calculateLLMAccuracyTrend() {
+    if (this.accuracyTracking.llmAccuracyHistory.length < 2) {
+      return 'insufficient_data';
+    }
+
+    // Compare last 5 entries with previous 5 entries
+    const recentEntries = this.accuracyTracking.llmAccuracyHistory.slice(-5);
+    const previousEntries = this.accuracyTracking.llmAccuracyHistory.slice(-10, -5);
+    
+    if (recentEntries.length === 0 || previousEntries.length === 0) {
+      return 'insufficient_data';
+    }
+
+    const recentAvg = recentEntries
+      .map(item => item.accuracyScore)
+      .filter(score => score !== null)
+      .reduce((a, b) => a + b, 0) / recentEntries.length;
+    
+    const previousAvg = previousEntries
+      .map(item => item.accuracyScore)
+      .filter(score => score !== null)
+      .reduce((a, b) => a + b, 0) / previousEntries.length;
+    
+    if (recentAvg > previousAvg) {
+      return 'improving';
+    } else if (recentAvg < previousAvg) {
+      return 'declining';
+    } else {
+      return 'stable';
+    }
+  }
+
   // Clear all analytics data
   async clearAnalyticsData() {
     this.events = [];
     this.userPreferences = {};
     this.featureUsage = {};
+    this.accuracyTracking = {
+      ocrAccuracyHistory: [],
+      llmAccuracyHistory: [],
+      overallAccuracyScore: 0.0
+    };
 
     try {
       // In a real implementation, you might want to clear the database tables as well
@@ -328,6 +496,10 @@ export const trackSearch = (query, resultsCount = 0, additionalData = {}) =>
   analyticsService.trackSearch(query, resultsCount, additionalData);
 export const trackError = (error, context = {}) => 
   analyticsService.trackError(error, context);
+export const trackOCRAccuracy = (imageSize, processingTime, accuracyScore, accuracyMetrics = null) => 
+  analyticsService.trackOCRAccuracy(imageSize, processingTime, accuracyScore, accuracyMetrics);
+export const trackLLMAccuracy = (inputLength, processingTime, accuracyScore, accuracyMetrics = null) => 
+  analyticsService.trackLLMAccuracy(inputLength, processingTime, accuracyScore, accuracyMetrics);
 export const getAnalyticsSummary = () => 
   analyticsService.getAnalyticsSummary();
 export const getFeatureUsageStats = () => 
