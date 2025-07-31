@@ -144,4 +144,4 @@ jobs:
       with:
         script_id: 41397
         file: "script.ts"
-        api_key: ${{ secrets.BUNNY_API_KEY }} 
+        api_key: ${{ secrets.BUNNY_API_KEY }}
