@@ -4,6 +4,8 @@ import { Appbar, Text } from 'react-native-paper';
 import PerformanceMetricsCard from '../../components/dashboard/PerformanceMetricsCard';
 import AnalyticsChart from '../../components/dashboard/AnalyticsChart';
 import ErrorReportCard from '../../components/dashboard/ErrorReportCard';
+import AccuracyMetricsCard from '../../components/dashboard/AccuracyMetricsCard';
+import RealTimeMonitoringCard from '../../components/dashboard/RealTimeMonitoringCard';
 import { 
   getPerformanceMetricsSummary, 
   getUserEngagementAnalytics, 
@@ -17,6 +19,8 @@ const MetricsDashboardScreen = ({ navigation }) => {
   const [performanceMetrics, setPerformanceMetrics] = useState({});
   const [analyticsData, setAnalyticsData] = useState({});
   const [errorData, setErrorData] = useState({});
+  const [accuracyMetrics, setAccuracyMetrics] = useState({});
+  const [realTimeMetrics, setRealTimeMetrics] = useState({});
 
   useEffect(() => {
     loadMetrics();
@@ -35,6 +39,12 @@ const MetricsDashboardScreen = ({ navigation }) => {
       // Get error data
       const errors = getErrorAnalytics();
       setErrorData(errors);
+      
+      // Get accuracy metrics
+      setAccuracyMetrics(analytics.accuracyMetrics || {});
+      
+      // Get real-time metrics
+      setRealTimeMetrics(perfMetrics.realTime || {});
     } catch (error) {
       console.error('Error loading metrics:', error);
     }
@@ -60,6 +70,31 @@ const MetricsDashboardScreen = ({ navigation }) => {
     }));
   };
 
+  // Prepare accuracy trend data
+  const prepareAccuracyTrendData = () => {
+    // This is a simplified example - in a real implementation, you would have historical data
+    const trendData = [];
+    if (accuracyMetrics.ocrAccuracyHistory && accuracyMetrics.ocrAccuracyHistory.length > 0) {
+      accuracyMetrics.ocrAccuracyHistory.slice(-5).forEach((entry, index) => {
+        trendData.push({
+          label: `OCR ${index + 1}`,
+          value: entry.accuracyScore * 100,
+          color: COLORS.SUCCESS
+        });
+      });
+    }
+    if (accuracyMetrics.llmAccuracyHistory && accuracyMetrics.llmAccuracyHistory.length > 0) {
+      accuracyMetrics.llmAccuracyHistory.slice(-5).forEach((entry, index) => {
+        trendData.push({
+          label: `LLM ${index + 1}`,
+          value: entry.accuracyScore * 100,
+          color: COLORS.INFO
+        });
+      });
+    }
+    return trendData;
+  };
+
   return (
     <View style={styles.container}>
       <Appbar.Header>
@@ -71,6 +106,17 @@ const MetricsDashboardScreen = ({ navigation }) => {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
+        {/* Real-time Monitoring */}
+        <RealTimeMonitoringCard 
+          title="Real-time Monitoring" 
+          metrics={[
+            { label: 'Active Sessions', value: realTimeMetrics.activeSessions || 0 },
+            { label: 'Processing Rate', value: realTimeMetrics.currentProcessingRate || 0, unit: 'items/min' },
+            { label: 'Error Rate', value: realTimeMetrics.currentErrorRate?.toFixed(2) || 0, unit: '%', 
+              threshold: { warning: 2, critical: 5 } }
+          ]}
+        />
+        
         {/* API Response Times */}
         <PerformanceMetricsCard 
           title="API Response Times" 
@@ -102,6 +148,23 @@ const MetricsDashboardScreen = ({ navigation }) => {
             { label: 'Max', value: `${performanceMetrics.llm?.max?.toFixed(2) || 0}ms` },
             { label: 'Accuracy', value: `${performanceMetrics.llm?.accuracy?.toFixed(2) || 0}%` },
           ]}
+        />
+        
+        {/* Accuracy Metrics */}
+        <AccuracyMetricsCard 
+          title="Accuracy Metrics" 
+          metrics={[
+            { label: 'Overall Accuracy', value: accuracyMetrics.overallAccuracyScore || 0 },
+            { label: 'OCR Trend', value: accuracyMetrics.ocrAccuracyTrend || 'N/A' },
+            { label: 'LLM Trend', value: accuracyMetrics.llmAccuracyTrend || 'N/A' },
+          ]}
+        />
+        
+        {/* Accuracy Trend Chart */}
+        <AnalyticsChart 
+          title="Accuracy Trend" 
+          chartData={prepareAccuracyTrendData()}
+          chartType="line"
         />
         
         {/* Sync Processing Times */}

@@ -6,12 +6,31 @@ import {
   Image,
   ScrollView,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import {useTheme} from '../../contexts/ThemeContext';
+import { trackScreenView, trackButtonClick } from '../../services/analyticsService';
 
 const ReceiptDetailScreen = ({route}) => {
   const {receipt} = route.params;
   const {theme} = useTheme();
+  
+  // Track screen view when component mounts
+  React.useEffect(() => {
+    trackScreenView('ReceiptDetailScreen', { receiptId: receipt.id });
+  }, [receipt.id]);
+
+  const handleEditPress = () => {
+    trackButtonClick('EditReceipt', 'ReceiptDetailScreen', { receiptId: receipt.id });
+    // Navigation logic would go here
+    Alert.alert('Edit', 'Edit functionality would be implemented here');
+  };
+
+  const handleDeletePress = () => {
+    trackButtonClick('DeleteReceipt', 'ReceiptDetailScreen', { receiptId: receipt.id });
+    // Delete logic would go here
+    Alert.alert('Delete', 'Delete functionality would be implemented here');
+  };
 
   const styles = StyleSheet.create({
     container: {
@@ -34,43 +53,17 @@ const ReceiptDetailScreen = ({route}) => {
     detailRow: {
       flexDirection: 'row',
       justifyContent: 'space-between',
-      paddingVertical: 10,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.colors.border,
+      marginBottom: 10,
     },
     label: {
       fontSize: 16,
       color: theme.colors.textSecondary,
+      fontWeight: '500',
     },
     value: {
       fontSize: 16,
       color: theme.colors.text,
-      fontWeight: '500',
-    },
-    sectionTitle: {
-      fontSize: 20,
       fontWeight: 'bold',
-      color: theme.colors.text,
-      marginTop: 20,
-      marginBottom: 10,
-    },
-    itemsContainer: {
-      backgroundColor: theme.colors.surface,
-      borderRadius: 8,
-      padding: 15,
-    },
-    itemRow: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      paddingVertical: 8,
-    },
-    itemLabel: {
-      fontSize: 14,
-      color: theme.colors.text,
-    },
-    itemValue: {
-      fontSize: 14,
-      color: theme.colors.text,
     },
     buttonContainer: {
       flexDirection: 'row',
@@ -78,12 +71,12 @@ const ReceiptDetailScreen = ({route}) => {
       padding: 20,
     },
     button: {
-      flex: 1,
       backgroundColor: theme.colors.primary,
       borderRadius: 8,
       padding: 15,
       marginHorizontal: 10,
       alignItems: 'center',
+      flex: 1,
     },
     secondaryButton: {
       backgroundColor: theme.colors.secondary,
@@ -95,52 +88,40 @@ const ReceiptDetailScreen = ({route}) => {
     },
   });
 
-  // Mock items data
-  const items = [
-    {name: 'Coffee', price: '$3.50'},
-    {name: 'Pastry', price: '$2.75'},
-    {name: 'Tax', price: '$0.33'},
-  ];
-
   return (
     <ScrollView style={styles.container}>
       <View style={styles.imageContainer}>
         <Image source={{uri: receipt.imageUri}} style={styles.receiptImage} />
       </View>
-
+      
       <View style={styles.detailsContainer}>
         <View style={styles.detailRow}>
           <Text style={styles.label}>Merchant:</Text>
-          <Text style={styles.value}>{receipt.merchant}</Text>
+          <Text style={styles.value}>{receipt.merchant || 'N/A'}</Text>
         </View>
+        
         <View style={styles.detailRow}>
           <Text style={styles.label}>Date:</Text>
-          <Text style={styles.value}>{receipt.date}</Text>
+          <Text style={styles.value}>{receipt.date || 'N/A'}</Text>
         </View>
+        
         <View style={styles.detailRow}>
           <Text style={styles.label}>Amount:</Text>
-          <Text style={styles.value}>{receipt.amount}</Text>
+          <Text style={styles.value}>{receipt.amount || 'N/A'}</Text>
+        </View>
+        
+        <View style={styles.detailRow}>
+          <Text style={styles.label}>Category:</Text>
+          <Text style={styles.value}>{receipt.category || 'N/A'}</Text>
         </View>
       </View>
-
-      <View style={styles.detailsContainer}>
-        <Text style={styles.sectionTitle}>Items</Text>
-        <View style={styles.itemsContainer}>
-          {items.map((item, index) => (
-            <View key={index} style={styles.itemRow}>
-              <Text style={styles.itemLabel}>{item.name}</Text>
-              <Text style={styles.itemValue}>{item.price}</Text>
-            </View>
-          ))}
-        </View>
-      </View>
-
+      
       <View style={styles.buttonContainer}>
-        <TouchableOpacity style={[styles.button, styles.secondaryButton]}>
+        <TouchableOpacity style={[styles.button, styles.secondaryButton]} onPress={handleEditPress}>
           <Text style={styles.buttonText}>Edit</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.button}>
-          <Text style={styles.buttonText}>Save</Text>
+        <TouchableOpacity style={styles.button} onPress={handleDeletePress}>
+          <Text style={styles.buttonText}>Delete</Text>
         </TouchableOpacity>
       </View>
     </ScrollView>

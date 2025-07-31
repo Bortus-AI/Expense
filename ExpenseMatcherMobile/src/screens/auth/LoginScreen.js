@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import {useAuth} from '../../contexts/AuthContext';
 import {useTheme} from '../../contexts/ThemeContext';
+import { trackScreenView, trackButtonClick, trackEvent } from '../../services/analyticsService';
 
 const LoginScreen = ({navigation}) => {
   const [email, setEmail] = useState('');
@@ -17,8 +18,14 @@ const LoginScreen = ({navigation}) => {
   const [loading, setLoading] = useState(false);
   const {login} = useAuth();
   const {theme} = useTheme();
+  
+  // Track screen view when component mounts
+  React.useEffect(() => {
+    trackScreenView('LoginScreen');
+  }, []);
 
   const handleLogin = async () => {
+    trackButtonClick('LoginButton', 'LoginScreen');
     if (!email || !password) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
@@ -26,11 +33,21 @@ const LoginScreen = ({navigation}) => {
 
     setLoading(true);
     try {
+      // Track login attempt
+      trackEvent('login_attempt', { email: email });
+      
       const result = await login(email, password);
       if (!result.success) {
+        // Track failed login
+        trackEvent('login_failed', { email: email, error: result.error });
         Alert.alert('Login Failed', result.error || 'Invalid credentials');
+      } else {
+        // Track successful login
+        trackEvent('login_success', { email: email });
       }
     } catch (error) {
+      // Track login error
+      trackEvent('login_error', { email: email, error: error.message });
       Alert.alert('Login Error', error.message);
     } finally {
       setLoading(false);

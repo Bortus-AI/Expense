@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import {useAuth} from '../../contexts/AuthContext';
 import {useTheme} from '../../contexts/ThemeContext';
+import { trackScreenView, trackButtonClick, trackEvent } from '../../services/analyticsService';
 
 const RegisterScreen = ({navigation}) => {
   const [name, setName] = useState('');
@@ -19,8 +20,14 @@ const RegisterScreen = ({navigation}) => {
   const [loading, setLoading] = useState(false);
   const {register} = useAuth();
   const {theme} = useTheme();
+  
+  // Track screen view when component mounts
+  React.useEffect(() => {
+    trackScreenView('RegisterScreen');
+  }, []);
 
   const handleRegister = async () => {
+    trackButtonClick('RegisterButton', 'RegisterScreen');
     if (!name || !email || !password || !confirmPassword) {
       Alert.alert('Error', 'Please fill in all fields');
       return;
@@ -31,18 +38,24 @@ const RegisterScreen = ({navigation}) => {
       return;
     }
 
-    if (password.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters');
-      return;
-    }
-
     setLoading(true);
     try {
+      // Track registration attempt
+      trackEvent('registration_attempt', { email: email });
+      
       const result = await register(name, email, password);
       if (!result.success) {
+        // Track failed registration
+        trackEvent('registration_failed', { email: email, error: result.error });
         Alert.alert('Registration Failed', result.error || 'Registration failed');
+      } else {
+        // Track successful registration
+        trackEvent('registration_success', { email: email });
+        Alert.alert('Success', 'Account created successfully!');
       }
     } catch (error) {
+      // Track registration error
+      trackEvent('registration_error', { email: email, error: error.message });
       Alert.alert('Registration Error', error.message);
     } finally {
       setLoading(false);

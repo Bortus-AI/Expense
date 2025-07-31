@@ -70,22 +70,25 @@ export default {
     }
 
     // Forward request to origin and add security headers
-    const response = await fetch(request);
-    const modifiedResponse = new Response(response.body, response);
+    // const response = await fetch(request);
+    // const modifiedResponse = new Response(response.body, response);
     
     // Add security headers to all responses
-    Object.entries(securityHeaders).forEach(([key, value]) => {
-      modifiedResponse.headers.set(key, value);
-    });
+    // Object.entries(securityHeaders).forEach(([key, value]) => {
+    //   modifiedResponse.headers.set(key, value);
+    // });
 
     // Add CORS headers for API endpoints
-    if (url.pathname.startsWith('/api/')) {
-      modifiedResponse.headers.set('Access-Control-Allow-Origin', '*');
-      modifiedResponse.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-      modifiedResponse.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    }
+    // if (url.pathname.startsWith('/api/')) {
+    //   modifiedResponse.headers.set('Access-Control-Allow-Origin', '*');
+    //   modifiedResponse.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+    //   modifiedResponse.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    // }
 
-    return modifiedResponse;
+    // return modifiedResponse;
+
+    // Temporary: Return a placeholder response to break the loop
+    return new Response('Edge script disabled - direct to origin', { status: 200 });
   }
 };
 

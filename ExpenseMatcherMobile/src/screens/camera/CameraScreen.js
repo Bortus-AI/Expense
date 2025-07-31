@@ -18,6 +18,7 @@ import Toast from 'react-native-toast-message';
 import CameraPreview from '../../components/specific/CameraPreview';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { compressImage } from '../../utils/imageCompression';
+import { trackOCRAccuracy } from '../../services/analyticsService';
 
 const CameraScreen = ({navigation}) => {
   const [imageUri, setImageUri] = useState(null);
@@ -145,13 +146,20 @@ const CameraScreen = ({navigation}) => {
       
       console.log('Image compressed successfully:', compressedImageUri);
       
+      // Record start time for processing
+      const startTime = Date.now();
+      
       // Simulate OCR processing
       // In a real implementation, you would use an OCR library like react-native-mlkit
       // or call your backend API to process the image
       console.log('Simulating OCR processing delay...');
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      // Mock OCR result
+      // Record end time and calculate processing time
+      const endTime = Date.now();
+      const processingTime = endTime - startTime;
+      
+      // Mock OCR result with enhanced accuracy metrics
       const mockOCRResult = {
         amount: '$42.50',
         date: '2023-06-15',
@@ -161,7 +169,30 @@ const CameraScreen = ({navigation}) => {
           {name: 'Pastry', price: '$2.75'},
           {name: 'Tax', price: '$0.33'},
         ],
+        accuracyMetrics: {
+          overallConfidence: 0.95,
+          fieldAccuracy: {
+            merchant: 0.98,
+            amount: 0.99,
+            date: 0.97,
+            items: 0.92
+          },
+          processingDetails: {
+            imageQualityScore: 0.85,
+            textClarity: 0.91,
+            languageDetection: 'en',
+            characterRecognitionRate: 0.96
+          }
+        }
       };
+      
+      // Track OCR accuracy metrics
+      trackOCRAccuracy(
+        imageUri.length, // imageSize
+        processingTime, // processingTime
+        mockOCRResult.accuracyMetrics.overallConfidence, // accuracyScore
+        mockOCRResult.accuracyMetrics // accuracyMetrics
+      );
       
       console.log('OCR processing completed, navigating to review screen');
       // Navigate to OCR review screen with the result

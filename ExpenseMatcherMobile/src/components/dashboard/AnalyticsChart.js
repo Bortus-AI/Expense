@@ -31,12 +31,55 @@ const BarChart = ({ data, style }) => {
   );
 };
 
-const AnalyticsChart = ({ title, chartData, style }) => {
+// Line chart component for trend visualization
+const LineChart = ({ data, style }) => {
+  // Find the maximum and minimum values for scaling
+  const values = data.map(item => item.value);
+  const maxValue = Math.max(...values, 1);
+  const minValue = Math.min(...values, 0);
+  const range = maxValue - minValue || 1; // Avoid division by zero
+  
+  return (
+    <View style={[styles.lineChartContainer, style]}>
+      <View style={styles.lineChart}>
+        {data.map((item, index) => {
+          const height = ((item.value - minValue) / range) * 100;
+          return (
+            <View key={index} style={styles.linePointContainer}>
+              <View 
+                style={[
+                  styles.linePoint, 
+                  { 
+                    height: `${height}%`,
+                    backgroundColor: item.color || COLORS.PRIMARY
+                  }
+                ]} 
+              />
+              <Text style={styles.lineLabel}>{item.label}</Text>
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+};
+
+const AnalyticsChart = ({ title, chartData, chartType = 'bar', style }) => {
+  const renderChart = () => {
+    switch (chartType) {
+      case 'line':
+        return <LineChart data={chartData} />;
+      case 'bar':
+      default:
+        return <BarChart data={chartData} />;
+    }
+  };
+
   return (
     <Card style={[styles.card, style]}>
       <Card.Content>
         <Text style={styles.title}>{title}</Text>
-        <BarChart data={chartData} />
+        {renderChart()}
       </Card.Content>
     </Card>
   );
@@ -88,6 +131,31 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 4,
     color: '#333',
+  },
+  lineChartContainer: {
+    height: 200,
+    marginVertical: 16,
+  },
+  lineChart: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    justifyContent: 'space-around',
+  },
+  linePointContainer: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  linePoint: {
+    width: '80%',
+    borderTopLeftRadius: 4,
+    borderTopRightRadius: 4,
+  },
+  lineLabel: {
+    fontSize: 10,
+    textAlign: 'center',
+    marginTop: 4,
+    color: '#666',
   },
 });
 
