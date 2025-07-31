@@ -51,13 +51,16 @@ jobs:
         const cors = require('cors');
         const helmet = require('helmet');
         const rateLimit = require('express-rate-limit');
+        const fs = require('fs');
         
         const app = express();
         const PORT = process.env.PORT || 3000;
         
         // Middleware
         app.use(cors());
-        app.use(helmet());
+        app.use(helmet({
+          contentSecurityPolicy: false, // Disable CSP for now to avoid issues with React
+        }));
         app.use(express.json({ limit: '10mb' }));
         app.use(express.urlencoded({ extended: true, limit: '10mb' }));
         
@@ -68,10 +71,12 @@ jobs:
         });
         app.use(limiter);
         
-        // Serve static files from React build
-        app.use(express.static(path.join(__dirname, 'public')));
+        // Health check endpoint
+        app.get('/health', (req, res) => {
+          res.status(200).json({ status: 'OK', timestamp: new Date().toISOString() });
+        });
         
-        // API routes
+        // API routes (before static files to give them priority)
         app.use('/api/auth', require('./routes/auth'));
         app.use('/api/transactions', require('./routes/transactions'));
         app.use('/api/receipts', require('./routes/receipts'));
@@ -83,9 +88,38 @@ jobs:
         app.use('/api/masterdata', require('./routes/masterdata'));
         app.use('/api/ai', require('./routes/ai'));
         
-        // Handle React routing, return all requests to React app
-        app.get('*', (req, res) => {
-          res.sendFile(path.join(__dirname, 'public', 'index.html'));
+        // Serve static files from React build
+        app.use(express.static(path.join(__dirname, 'public'), {
+          maxAge: '1h',
+          etag: false
+        }));
+        
+        // Handle React routing - only for non-API, non-static file requests
+        app.get('*', (req, res, next) => {
+          // Don't handle API routes or file extensions
+          if (req.path.startsWith('/api/') || req.path.includes('.')) {
+            return next();
+          }
+          
+          const indexPath = path.join(__dirname, 'public', 'index.html');
+          
+          // Check if index.html exists before serving
+          if (fs.existsSync(indexPath)) {
+            res.sendFile(indexPath);
+          } else {
+            res.status(404).send('Application not found');
+          }
+        });
+        
+        // Error handling middleware
+        app.use((err, req, res, next) => {
+          console.error('Server error:', err);
+          res.status(500).json({ error: 'Internal server error' });
+        });
+        
+        // 404 handler for unmatched routes
+        app.use((req, res) => {
+          res.status(404).json({ error: 'Route not found' });
         });
         
         app.listen(PORT, () => {
