@@ -10,6 +10,7 @@ A React Native mobile application for capturing and processing receipts using OC
 - Expense categorization
 - Dark mode support
 - Cross-platform support (iOS and Android)
+- Comprehensive theme system with customizable colors
 
 ## Project Structure
 
@@ -75,6 +76,18 @@ The app follows a modular architecture with clear separation of concerns:
 - **Contexts**: Global state management
 - **Services**: Business logic and API calls
 - **Utils**: Helper functions
+
+## Theme System
+
+The app features a comprehensive theme system with full dark mode support:
+- Light, dark, and AMOLED dark themes
+- System-aware theme detection
+- Customizable primary and accent colors
+- Theme export/import functionality
+- Smooth theme transition animations
+- Accessibility considerations for contrast ratios
+
+For detailed information about the theme system, see [THEME_SYSTEM_README.md](THEME_SYSTEM_README.md).
 
 ## Camera and OCR Flow
 

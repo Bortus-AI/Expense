@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { settingsAPI } from '../services/api';
 import { toast } from 'react-toastify';
@@ -14,9 +14,9 @@ const Settings = () => {
 
   useEffect(() => {
     loadSettings();
-  }, []);
+  }, [loadSettings]);
 
-  const loadSettings = async () => {
+  const loadSettings = useCallback(async () => {
     try {
       setLoading(true);
       const response = await settingsAPI.getAllSettings();
@@ -34,7 +34,7 @@ const Settings = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   const testLLMConnection = async () => {
     try {
@@ -70,19 +70,19 @@ const Settings = () => {
     }
   };
 
-  const updateSetting = async (key, value, description) => {
-    try {
-      setSaving(true);
-      await settingsAPI.updateSetting(key, value, description);
-      toast.success('Setting updated successfully');
-      await loadSettings();
-    } catch (error) {
-      console.error('Error updating setting:', error);
-      toast.error('Failed to update setting');
-    } finally {
-      setSaving(false);
-    }
-  };
+  // const updateSetting = async (key, value, description) => {
+  //   try {
+  //     setSaving(true);
+  //     await settingsAPI.updateSetting(key, value, description);
+  //     toast.success('Setting updated successfully');
+  //     await loadSettings();
+  //   } catch (error) {
+  //     console.error('Error updating setting:', error);
+  //     toast.error('Failed to update setting');
+  //   } finally {
+  //     setSaving(false);
+  //   }
+  // };
 
   if (loading) {
     return (

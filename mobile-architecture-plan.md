@@ -86,7 +86,7 @@ App
 
 ### Context API Implementation
 - **AuthContext**: User authentication state, login/logout functions
-- **ThemeContext**: Theme management (light/dark/system)
+- **ThemeContext**: Theme management (light/dark/system/amoled) with customization and export/import
 - **ReceiptsContext**: Receipts data and operations
 - **NetworkContext**: Network status and offline capabilities
 - **SettingsContext**: User preferences and app settings
@@ -129,12 +129,22 @@ App
   - Dark theme with appropriate contrast
   - System theme detection and automatic switching
   - Customizable theme colors
+  - AMOLED-friendly dark theme variants
+  - Theme export/import functionality
 
 ### Implementation
 - ThemeContext for global theme state
 - Custom hook for theme access (useTheme)
 - Theme-aware components with dynamic styling
 - Persistent theme preference in AsyncStorage
+- Theme transition animations for smooth switching
+- Accessibility considerations
+- Real-time theme preview
+- Customizable primary and accent colors
+- Theme export/import functionality
+- Smooth transition animations for contrast ratios
+- Adaptive icons and images for different themes
+- Dynamic status bar and navigation bar colors
 
 ## 6. Integration Points with Existing Services
 
@@ -187,6 +197,10 @@ App
   - Clear hierarchy with Material Design fonts
   - Responsive text sizing
   - Accessibility considerations
+- Real-time theme preview
+- Customizable primary and accent colors
+- Theme export/import functionality
+- Smooth transition animations
 
 - **Spacing and Layout**:
   - Consistent padding and margins
@@ -319,10 +333,14 @@ App
 
 ### Theme Experience
 - **Seamless Theme Switching**:
-  - Light/Dark/System theme options
+  - Light/Dark/System/AMOLED theme options
   - Automatic system theme detection
   - Persistent theme preferences
   - Accessibility considerations
+- Real-time theme preview
+- Customizable primary and accent colors
+- Theme export/import functionality
+- Smooth transition animations
 
 ## 13. Testing and Quality Assurance
 
@@ -341,6 +359,9 @@ App
   - User flow testing
   - Offline scenario testing
   - Theme switching validation
+- Theme customization testing
+- Theme export/import validation
+- Accessibility contrast testing
 
 ### Quality Metrics
 - **Performance Benchmarks**:

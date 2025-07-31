@@ -4,7 +4,7 @@ import { toast } from 'react-toastify';
 import { useAuth } from '../contexts/AuthContext';
 
 const AIDashboard = () => {
-  const { user } = useAuth();
+  // const { user } = useAuth(); // Removed unused variable
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
