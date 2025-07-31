@@ -30,6 +30,19 @@ backendFiles.forEach(file => {
   }
 });
 
+// Build frontend first
+console.log('Building frontend...');
+const { execSync } = require('child_process');
+try {
+  execSync('cd frontend && npm run build', { 
+    stdio: 'inherit',
+    cwd: path.join(__dirname, '..')
+  });
+} catch (error) {
+  console.error('Frontend build failed:', error.message);
+  process.exit(1);
+}
+
 // Copy frontend build
 console.log('Copying frontend build...');
 const frontendBuildDir = path.join(__dirname, '..', 'frontend', 'build');
@@ -41,7 +54,7 @@ if (fs.existsSync(frontendBuildDir)) {
   }
   copyDirectory(frontendBuildDir, publicDir);
 } else {
-  console.warn('Frontend build directory not found. Make sure to run "npm run build" first.');
+  console.warn('Frontend build directory not found. Build may have failed.');
 }
 
 // Create deployment server.js

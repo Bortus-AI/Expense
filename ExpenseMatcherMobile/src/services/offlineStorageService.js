@@ -278,6 +278,7 @@ const migrateToVersion2 = async () => {
 // Receipt operations with offline support
 export const saveReceiptOffline = async (receiptData) => {
   try {
+    console.log('Saving receipt offline:', receiptData);
     // Generate ID if not provided
     const receipt = {
       ...receiptData,
@@ -286,12 +287,15 @@ export const saveReceiptOffline = async (receiptData) => {
       updatedAt: new Date().toISOString(),
     };
     
+    console.log('Saving receipt to SQLite database:', receipt);
     // Save to SQLite database
     const savedReceipt = await saveReceipt(receipt);
     
+    console.log('Updating cache with receipts');
     // Update cache
     await setCachedData('receipts', await getReceipts());
     
+    console.log('Receipt saved successfully:', savedReceipt);
     return savedReceipt;
   } catch (error) {
     console.error('Error saving receipt offline:', error);

@@ -177,6 +177,7 @@ const ReceiptsListScreen = ({navigation}) => {
   const addToSearchHistory = (query) => {
     if (!query.trim()) return;
     
+    console.log('Adding to search history:', query);
     const newHistory = [
       query,
       ...searchHistory.filter(item => item !== query)
@@ -283,6 +284,7 @@ const ReceiptsListScreen = ({navigation}) => {
   }, [loadReceipts]);
 
   const handleSearch = (query) => {
+    console.log('Handling search query:', query);
     setSearchQuery(query);
     if (query.trim()) {
       addToSearchHistory(query);
@@ -294,6 +296,7 @@ const ReceiptsListScreen = ({navigation}) => {
   };
 
   const applyFilters = (newFilters) => {
+    console.log('Applying filters:', newFilters);
     setFilters(newFilters);
     setIsFilterModalVisible(false);
   };

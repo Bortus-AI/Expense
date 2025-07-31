@@ -62,6 +62,7 @@ const GalleryScreen = ({navigation}) => {
     };
 
     launchImageLibrary(options, response => {
+      console.log('Gallery selection response:', response);
       if (response.didCancel) {
         console.log('User cancelled image picker');
       } else if (response.error) {
@@ -69,6 +70,7 @@ const GalleryScreen = ({navigation}) => {
         Alert.alert('Error', MESSAGES.IMAGE_SELECT_ERROR);
       } else {
         const assets = response.assets || [];
+        console.log('Selected assets:', assets);
         const validAssets = assets.filter(asset => asset.uri);
         
         // Validate file types and sizes
@@ -77,6 +79,7 @@ const GalleryScreen = ({navigation}) => {
           const validTypes = ['jpg', 'jpeg', 'png', 'pdf'];
           const maxSize = 10 * 1024 * 1024; // 10MB limit
           
+          console.log('Validating file:', asset.fileName, 'Type:', fileType, 'Size:', asset.fileSize);
           if (!validTypes.includes(fileType)) {
             Alert.alert('Invalid File Type', 'Only JPEG, PNG, and PDF files are allowed');
             return false;
@@ -102,6 +105,7 @@ const GalleryScreen = ({navigation}) => {
           isSelected: false,
         }));
         
+        console.log('Adding new images to selection:', newImages);
         setSelectedImages(prev => [...prev, ...newImages]);
       }
     });

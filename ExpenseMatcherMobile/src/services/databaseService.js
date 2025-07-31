@@ -96,12 +96,14 @@ const getDB = async () => {
 // Receipt operations
 export const saveReceipt = async (receipt) => {
   try {
+    console.log('Saving receipt to database:', receipt);
     const database = await getDB();
     const { id, merchant, date, amount, category, status, imageUri, localPath } = receipt;
     
+    console.log('Executing SQL insert for receipt:', id);
     await database.executeSql(
-      `INSERT OR REPLACE INTO receipts 
-       (id, merchant, date, amount, category, status, imageUri, localPath, createdAt, updatedAt, isSynced, syncAction) 
+      `INSERT OR REPLACE INTO receipts
+       (id, merchant, date, amount, category, status, imageUri, localPath, createdAt, updatedAt, isSynced, syncAction)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
@@ -119,9 +121,11 @@ export const saveReceipt = async (receipt) => {
       ]
     );
     
+    console.log('Adding receipt to sync queue:', id);
     // Add to sync queue
     await addToSyncQueue('receipts', id, 'create', receipt);
     
+    console.log('Receipt saved successfully:', receipt);
     return receipt;
   } catch (error) {
     console.error('Error saving receipt:', error);

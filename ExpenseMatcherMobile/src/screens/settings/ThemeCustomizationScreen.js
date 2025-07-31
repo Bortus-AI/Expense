@@ -27,6 +27,7 @@ const ThemeCustomizationScreen = ({ navigation }) => {
   const [accentColor, setAccentColor] = useState(theme.colors.secondary);
 
   const handleSaveCustomization = useCallback(() => {
+    console.log('Saving theme customization:', { primaryColor, accentColor });
     setCustomPrimaryColor(primaryColor);
     setCustomAccentColor(accentColor);
     

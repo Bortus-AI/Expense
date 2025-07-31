@@ -76,6 +76,7 @@ const CameraScreen = ({navigation}) => {
       return;
     }
 
+    console.log('Attempting to capture image with camera');
     const options = {
       mediaType: 'photo',
       quality: 0.8,
@@ -84,6 +85,7 @@ const CameraScreen = ({navigation}) => {
     };
 
     launchCamera(options, response => {
+      console.log('Camera response received:', response);
       if (response.didCancel) {
         console.log('User cancelled camera');
       } else if (response.error) {
@@ -91,6 +93,7 @@ const CameraScreen = ({navigation}) => {
         Alert.alert('Error', 'Failed to capture image');
       } else {
         const uri = response.assets?.[0]?.uri;
+        console.log('Image captured successfully:', uri);
         if (uri) {
           setImageUri(uri);
         }
@@ -127,11 +130,13 @@ const CameraScreen = ({navigation}) => {
       return;
     }
 
+    console.log('Starting OCR processing for image:', imageUri);
     setIsProcessing(true);
     try {
       // Simulate OCR processing
       // In a real implementation, you would use an OCR library like react-native-mlkit
       // or call your backend API to process the image
+      console.log('Simulating OCR processing delay...');
       await new Promise(resolve => setTimeout(resolve, 2000));
       
       // Mock OCR result
@@ -146,6 +151,7 @@ const CameraScreen = ({navigation}) => {
         ],
       };
       
+      console.log('OCR processing completed, navigating to review screen');
       // Navigate to OCR review screen with the result
       navigation.navigate('OCRReview', {imageUri, ocrResult: mockOCRResult});
     } catch (error) {

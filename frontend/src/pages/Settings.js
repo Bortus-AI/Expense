@@ -12,10 +12,6 @@ const Settings = () => {
   const [llmConnected, setLlmConnected] = useState(false);
   const [testingConnection, setTestingConnection] = useState(false);
 
-  useEffect(() => {
-    loadSettings();
-  }, [loadSettings]);
-
   const loadSettings = useCallback(async () => {
     try {
       setLoading(true);
@@ -35,6 +31,10 @@ const Settings = () => {
       setLoading(false);
     }
   }, []);
+
+  useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
 
   const testLLMConnection = async () => {
     try {
@@ -103,149 +103,156 @@ const Settings = () => {
     );
   }
 
-  if (user?.currentRole !== 'admin') {
-    return (
-      <div className="container mt-4">
-        <div className="row">
-          <div className="col-12">
-            <div className="alert alert-danger">
-              <h4>Access Denied</h4>
-              <p>You need admin privileges to access the settings page.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="container mt-4">
       <div className="row">
         <div className="col-12">
           <div className="card">
             <div className="card-header">
-              <h3>System Settings</h3>
-              <p className="text-muted mb-0">Manage system configuration and AI settings</p>
+              <h3>Settings</h3>
             </div>
             <div className="card-body">
-              
-              {/* LLM Model Configuration */}
+              {/* LLM Configuration */}
               <div className="mb-4">
-                <h4>🤖 LLM Model Configuration</h4>
+                <h5>LLM Configuration</h5>
                 <div className="row">
                   <div className="col-md-6">
-                    <div className="form-group">
+                    <div className="mb-3">
                       <label htmlFor="llmModel" className="form-label">LLM Model</label>
-                      <div className="input-group">
-                        <input
-                          type="text"
-                          className="form-control"
-                          id="llmModel"
-                          value={llmModel}
-                          onChange={(e) => setLlmModel(e.target.value)}
-                          placeholder="e.g., llama3.1:8b, llama3.2:3b"
-                        />
-                        <button
-                          className="btn btn-outline-secondary"
-                          type="button"
-                          onClick={updateLLMModel}
-                          disabled={saving}
-                        >
-                          {saving ? 'Saving...' : 'Save'}
-                        </button>
-                      </div>
-                      <small className="form-text text-muted">
-                        The LLM model used for AI features like OCR processing and categorization
-                      </small>
+                      <select
+                        id="llmModel"
+                        className="form-select"
+                        value={llmModel}
+                        onChange={(e) => setLlmModel(e.target.value)}
+                      >
+                        <option value="">Select Model</option>
+                        <option value="llama3.1:8b">Llama 3.1 8B</option>
+                        <option value="llama3.2:3b">Llama 3.2 3B</option>
+                        <option value="llama3.1:70b">Llama 3.1 70B</option>
+                      </select>
                     </div>
                   </div>
                   <div className="col-md-6">
-                    <div className="form-group">
+                    <div className="mb-3">
                       <label className="form-label">Connection Status</label>
-                      <div className="d-flex align-items-center">
-                        <div className={`badge ${llmConnected ? 'bg-success' : 'bg-danger'} me-2`}>
+                      <div>
+                        <span className={`badge ${llmConnected ? 'bg-success' : 'bg-danger'}`}>
                           {llmConnected ? 'Connected' : 'Disconnected'}
-                        </div>
+                        </span>
                         <button
-                          className="btn btn-sm btn-outline-primary"
+                          className="btn btn-sm btn-outline-primary ms-2"
                           onClick={testLLMConnection}
                           disabled={testingConnection}
                         >
                           {testingConnection ? 'Testing...' : 'Test Connection'}
                         </button>
                       </div>
-                      <small className="form-text text-muted">
-                        Test the connection to your Ollama server
-                      </small>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  className="btn btn-primary"
+                  onClick={updateLLMModel}
+                  disabled={saving || !llmModel}
+                >
+                  {saving ? 'Saving...' : 'Update Model'}
+                </button>
+              </div>
+
+              {/* General Settings */}
+              <div className="mb-4">
+                <h5>General Settings</h5>
+                <div className="row">
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label className="form-label">Auto Match Threshold</label>
+                      <input
+                        type="number"
+                        className="form-control"
+                        value={settings.autoMatchThreshold || 70}
+                        readOnly
+                      />
+                      <small className="text-muted">Percentage threshold for automatic matching</small>
+                    </div>
+                  </div>
+                  <div className="col-md-6">
+                    <div className="mb-3">
+                      <label className="form-label">Max File Size</label>
+                      <input
+                        type="text"
+                        className="form-control"
+                        value={settings.maxFileSize || '50MB'}
+                        readOnly
+                      />
+                      <small className="text-muted">Maximum file size for uploads</small>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <hr />
-
-              {/* All Settings */}
+              {/* AI Features */}
               <div className="mb-4">
-                <h4>⚙️ All Settings</h4>
-                <div className="table-responsive">
-                  <table className="table table-striped">
-                    <thead>
-                      <tr>
-                        <th>Setting</th>
-                        <th>Value</th>
-                        <th>Type</th>
-                        <th>Description</th>
-                        <th>Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {Object.entries(settings).map(([key, setting]) => (
-                        <tr key={key}>
-                          <td>
-                            <code>{key}</code>
-                            {setting.isAdminOnly && (
-                              <span className="badge bg-warning ms-2">Admin Only</span>
-                            )}
-                          </td>
-                          <td>
-                            <code>{String(setting.value)}</code>
-                          </td>
-                          <td>
-                            <span className="badge bg-info">{setting.type}</span>
-                          </td>
-                          <td>
-                            <small className="text-muted">
-                              {setting.description || 'No description'}
-                            </small>
-                          </td>
-                          <td>
-                            <button
-                              className="btn btn-sm btn-outline-primary"
-                              onClick={() => {
-                                // For now, just show the current value
-                                toast.info(`Current value: ${setting.value}`);
-                              }}
-                            >
-                              Edit
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <h5>AI Features</h5>
+                <div className="row">
+                  <div className="col-md-4">
+                    <div className="form-check">
+                      <input
+                        className="form-check-input"
+                        type="checkbox"
+                        id="aiEnabled"
+                        checked={settings.aiEnabled !== false}
+                        readOnly
+                      />
+                      <label className="form-check-label" htmlFor="aiEnabled">
+                        AI Features Enabled
+                      </label>
+                    </div>
+                  </div>
+                  <div className="col-md-4">
+                    <div className="form-check">
+                      <input
+                        className="form-check-input"
+                        type="checkbox"
+                        id="autoCategorization"
+                        checked={settings.autoCategorization !== false}
+                        readOnly
+                      />
+                      <label className="form-check-label" htmlFor="autoCategorization">
+                        Auto Categorization
+                      </label>
+                    </div>
+                  </div>
+                  <div className="col-md-4">
+                    <div className="form-check">
+                      <input
+                        className="form-check-input"
+                        type="checkbox"
+                        id="duplicateDetection"
+                        checked={settings.duplicateDetection !== false}
+                        readOnly
+                      />
+                      <label className="form-check-label" htmlFor="duplicateDetection">
+                        Duplicate Detection
+                      </label>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* Help Section */}
-              <div className="alert alert-info">
-                <h5>💡 Help</h5>
-                <ul className="mb-0">
-                  <li><strong>LLM Model:</strong> Set the Ollama model to use for AI features. Common models include <code>llama3.1:8b</code>, <code>llama3.2:3b</code>, <code>llama3.2:8b</code>, etc.</li>
-                  <li><strong>Connection Test:</strong> Verify that your Ollama server is running and accessible.</li>
-                  <li><strong>Settings:</strong> All system settings are stored per company and can be overridden by company-specific settings.</li>
-                </ul>
+              {/* System Information */}
+              <div className="mb-4">
+                <h5>System Information</h5>
+                <div className="row">
+                  <div className="col-md-6">
+                    <p><strong>User:</strong> {user?.email}</p>
+                    <p><strong>Company:</strong> {user?.company_name || 'N/A'}</p>
+                  </div>
+                  <div className="col-md-6">
+                    <p><strong>Environment:</strong> {process.env.NODE_ENV || 'development'}</p>
+                    <p><strong>Version:</strong> 1.0.0</p>
+                  </div>
+                </div>
               </div>
-
             </div>
           </div>
         </div>

@@ -130,6 +130,7 @@ const checkForConflicts = async (syncItem) => {
 const syncItem = async (syncItem) => {
   try {
     const { id, tableName, recordId, action, data } = syncItem;
+    console.log('Syncing item:', syncItem);
     
     // Check for conflicts before syncing
     const conflictResult = await checkForConflicts(syncItem);
@@ -148,6 +149,7 @@ const syncItem = async (syncItem) => {
     }
     
     // Update status to in-progress
+    console.log('Updating sync item status to in-progress:', id);
     await updateSyncItemStatus(id, 'in-progress');
     
     let result;
@@ -155,14 +157,18 @@ const syncItem = async (syncItem) => {
     // Handle different table types and actions
     switch (tableName) {
       case 'receipts':
+        console.log('Processing receipt action:', action);
         switch (action) {
           case 'create':
+            console.log('Creating receipt with data:', data);
             result = await mockApi.createReceipt(data);
             break;
           case 'update':
+            console.log('Updating receipt:', recordId, 'with data:', data);
             result = await mockApi.updateReceipt(recordId, data);
             break;
           case 'delete':
+            console.log('Deleting receipt:', recordId);
             result = await mockApi.deleteReceipt(recordId);
             break;
           default:
@@ -175,6 +181,7 @@ const syncItem = async (syncItem) => {
         throw new Error(`Unknown table: ${tableName}`);
     }
     
+    console.log('Sync item processed successfully:', result);
     // Mark as completed
     await updateSyncItemStatus(id, 'completed');
     
@@ -183,6 +190,7 @@ const syncItem = async (syncItem) => {
     
     // Mark record as synced if applicable
     if (tableName === 'receipts' && action !== 'delete') {
+      console.log('Marking receipt as synced:', recordId);
       await markReceiptAsSynced(recordId);
     }
     

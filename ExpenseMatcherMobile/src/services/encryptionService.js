@@ -78,6 +78,7 @@ export const deleteSecureItem = async (key, options = {}) => {
 // For non-sensitive data that still needs some obfuscation
 export const obfuscateData = (data) => {
   try {
+    console.log('Obfuscating data');
     return encrypt(JSON.stringify(data));
   } catch (error) {
     console.error('Error obfuscating data:', error);

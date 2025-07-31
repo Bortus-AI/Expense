@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { aiAPI } from '../services/api';
 import { toast } from 'react-toastify';
-import { useAuth } from '../contexts/AuthContext';
 
 const AIDashboard = () => {
   // const { user } = useAuth(); // Removed unused variable

@@ -1,107 +1,166 @@
-# Deployment Guide for Bunny.net
+# Expense Matcher Mobile App - Deployment Guide
 
-This guide will help you deploy your Expense Matcher application to bunny.net.
+## Overview
+This guide provides instructions for deploying the Expense Matcher mobile app to production environments.
 
 ## Prerequisites
+- Node.js (v16 or higher)
+- React Native CLI
+- Android Studio (for Android deployment)
+- Xcode (for iOS deployment)
+- Valid developer accounts for app stores
 
-1. A bunny.net account
-2. Your GitHub repository connected to bunny.net
-3. Environment variables configured
+## Environment Setup
 
-## Deployment Configuration
-
-### Bunny.net Settings
-
-Based on the image you provided, configure your bunny.net deployment with these settings:
-
-- **Publish Branch**: `main`
-- **Project Preset**: `Custom`
-- **Install Command**: `npm install`
-- **Build Command**: `npm run build`
-- **Entry File**: `server.js`
-
-### Environment Variables
-
-You'll need to set up these environment variables in your bunny.net dashboard:
-
-```
-NODE_ENV=production
-PORT=3000
-JWT_SECRET=your_jwt_secret_here
-DATABASE_URL=your_database_url_here
+### 1. Install Dependencies
+```bash
+cd ExpenseMatcherMobile
+npm install
 ```
 
-## Deployment Steps
-
-### 1. Connect GitHub Repository
-
-1. Go to your bunny.net dashboard
-2. Create a new application
-3. Connect your GitHub repository
-4. Select the `main` branch
-
-### 2. Configure Build Settings
-
-In the bunny.net deployment settings:
-
-- **Install Command**: `npm install`
-- **Build Command**: `npm run build`
-- **Entry File**: `server.js`
-
-### 3. Set Environment Variables
-
-Add these environment variables in your bunny.net application settings:
-
-- `NODE_ENV=production`
-- `PORT=3000`
-- `JWT_SECRET` (your secret key)
-- Any other environment variables your app needs
-
-### 4. Deploy
-
-1. Push your code to the `main` branch
-2. bunny.net will automatically trigger a deployment
-3. Monitor the deployment logs for any issues
-
-## File Structure
-
-The deployment will create this structure:
-
+### 2. Configure Environment Variables
+Create a `.env` file in the root directory with the following variables:
 ```
-/
-├── server.js (main entry point)
-├── package.json (dependencies)
-├── public/ (React build files)
-├── routes/ (API routes)
-├── middleware/ (Express middleware)
-├── services/ (Business logic)
-└── database/ (Database files)
+API_URL=https://your-api-url.com
+OCR_API_KEY=your-ocr-api-key
+ENCRYPTION_KEY=your-encryption-key
 ```
+
+## Building for Android
+
+### 1. Generate Signed APK
+1. Generate a signing key:
+```bash
+keytool -genkeypair -v -storetype PKCS12 -keystore my-upload-key.keystore -alias my-key-alias -keyalg RSA -keysize 2048 -validity 10000
+```
+
+2. Place the keystore file in `android/app` directory
+
+3. Edit `android/gradle.properties` and add:
+```
+MYAPP_UPLOAD_STORE_FILE=my-upload-key.keystore
+MYAPP_UPLOAD_KEY_ALIAS=my-key-alias
+MYAPP_UPLOAD_STORE_PASSWORD=*****
+MYAPP_UPLOAD_KEY_PASSWORD=*****
+```
+
+4. Edit `android/app/build.gradle`:
+```gradle
+signingConfigs {
+    release {
+        if (project.hasProperty('MYAPP_UPLOAD_STORE_FILE')) {
+            storeFile file(MYAPP_UPLOAD_STORE_FILE)
+            storePassword MYAPP_UPLOAD_STORE_PASSWORD
+            keyAlias MYAPP_UPLOAD_KEY_ALIAS
+            keyPassword MYAPP_UPLOAD_KEY_PASSWORD
+        }
+    }
+}
+```
+
+### 2. Build Release APK
+```bash
+cd android
+./gradlew assembleRelease
+```
+
+The APK will be located at `android/app/build/outputs/apk/release/app-release.apk`
+
+## Building for iOS
+
+### 1. Configure Xcode Project
+1. Open `ios/ExpenseMatcherMobile.xcworkspace` in Xcode
+2. Configure bundle identifier in project settings
+3. Set up code signing with your Apple Developer account
+
+### 2. Build Archive
+1. Select "Generic iOS Device" as target
+2. Go to Product > Archive
+3. Follow Xcode prompts to upload to App Store
+
+## Backend Deployment
+
+### 1. API Server
+Deploy the backend server using your preferred method (Docker, cloud provider, etc.)
+
+### 2. Database
+Set up a PostgreSQL database and configure connection settings in the backend.
+
+### 3. OCR Service
+Configure access to your chosen OCR service (Google Vision, AWS Textract, etc.)
+
+## Configuration
+
+### 1. App Configuration
+Update `src/config/index.js` with production API endpoints and settings.
+
+### 2. Security Settings
+- Update encryption keys
+- Configure secure storage settings
+- Set up proper authentication flows
+
+## Testing Checklist
+
+### Pre-Deployment
+- [ ] All unit tests pass
+- [ ] All integration tests pass
+- [ ] Performance benchmarks meet requirements
+- [ ] Security audit completed
+- [ ] Cross-platform compatibility verified
+- [ ] App store guidelines compliance checked
+
+### Post-Deployment
+- [ ] Monitor app performance and crashes
+- [ ] Verify user authentication flows
+- [ ] Check data synchronization
+- [ ] Validate OCR processing accuracy
+- [ ] Confirm offline functionality
+
+## Rollout Strategy
+
+### 1. Staged Rollout
+1. Deploy to small percentage of users (1-5%)
+2. Monitor key metrics and user feedback
+3. Gradually increase rollout percentage
+4. Full deployment after validation
+
+### 2. Rollback Plan
+- Maintain previous version for quick rollback
+- Monitor crash reports and user feedback
+- Prepare communication plan for users if issues arise
+
+## Maintenance
+
+### 1. Regular Updates
+- Security patches and updates
+- Performance optimizations
+- Feature enhancements based on user feedback
+
+### 2. Monitoring
+- App performance monitoring
+- Crash reporting and analysis
+- User engagement metrics
+- Database performance monitoring
+
+### 3. Backup and Recovery
+- Regular database backups
+- User data export functionality
+- Disaster recovery procedures
 
 ## Troubleshooting
 
 ### Common Issues
+1. **Build Failures**: Check Node.js version compatibility and dependency conflicts
+2. **Deployment Errors**: Verify signing configurations and certificates
+3. **Runtime Crashes**: Check crash reports and logs for error patterns
+4. **Performance Issues**: Monitor resource usage and optimize accordingly
 
-1. **Build Failures**: Check that all dependencies are properly listed in `package.json`
-2. **Port Issues**: Ensure your app listens on `process.env.PORT`
-3. **Environment Variables**: Verify all required env vars are set in bunny.net
-4. **Database Connection**: Ensure your database is accessible from bunny.net servers
+### Support
+- Maintain detailed documentation
+- Provide user support channels
+- Establish bug reporting process
+- Plan for regular maintenance windows
 
-### Logs
+## Conclusion
 
-Check the deployment logs in your bunny.net dashboard for detailed error messages.
-
-## Manual Deployment
-
-If you prefer to create the workflow file manually:
-
-1. Check the "I will create the GitHub workflow file myself" option
-2. Use the provided `.github/workflows/deploy.yml` file
-3. Configure your GitHub secrets for bunny.net API access
-
-## Support
-
-For issues with bunny.net deployment, check:
-- bunny.net documentation
-- GitHub Actions logs
-- Application logs in bunny.net dashboard 
+Following this deployment guide will help ensure a smooth and successful launch of the Expense Matcher mobile app. Regular monitoring and maintenance will be key to providing a quality user experience and addressing any issues that may arise.

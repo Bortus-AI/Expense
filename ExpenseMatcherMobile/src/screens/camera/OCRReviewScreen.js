@@ -15,6 +15,7 @@ const OCRReviewScreen = ({route, navigation}) => {
   const {theme} = useTheme();
 
   const handleSaveReceipt = () => {
+    console.log('Saving receipt to backend');
     // In a real app, you would save the receipt to your backend
     alert('Receipt saved successfully!');
     navigation.navigate('Receipts');
