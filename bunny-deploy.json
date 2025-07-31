@@ -1,0 +1,50 @@
+{
+  "name": "expense-matcher",
+  "version": "1.0.0",
+  "description": "Expense Matcher Application for bunny.net",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "build": "npm run install-all && npm run build-frontend && npm run prepare-deployment",
+    "install-all": "npm install && cd backend && npm install && cd ../frontend && npm install",
+    "build-frontend": "cd frontend && npm run build",
+    "prepare-deployment": "node scripts/prepare-deployment.js"
+  },
+  "engines": {
+    "node": "18.x"
+  },
+  "dependencies": {
+    "archiver": "^7.0.1",
+    "axios": "^1.11.0",
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "csv-parser": "^3.0.0",
+    "dotenv": "^17.2.1",
+    "exceljs": "^4.4.0",
+    "express": "^4.18.2",
+    "express-rate-limit": "^8.0.1",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.2",
+    "moment": "^2.30.1",
+    "multer": "^1.4.5-lts.1",
+    "pdf-lib": "^1.17.1",
+    "pdf-parse": "^1.1.1",
+    "pdf-poppler": "^0.2.1",
+    "pdfkit": "^0.17.1",
+    "sqlite3": "^5.1.6",
+    "tesseract.js": "^5.0.4",
+    "uuid": "^9.0.1"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "bunny": {
+    "installCommand": "npm install",
+    "buildCommand": "npm run build",
+    "entryFile": "server.js",
+    "environment": {
+      "NODE_ENV": "production",
+      "PORT": "3000"
+    }
+  }
+} 

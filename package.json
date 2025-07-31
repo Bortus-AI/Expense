@@ -8,7 +8,9 @@
     "server": "cd backend && npm run dev",
     "client": "cd frontend && npm start",
     "install-all": "npm install && cd backend && npm install && cd ../frontend && npm install",
-    "build": "cd frontend && npm run build"
+    "build": "cd frontend && npm run build",
+    "deploy": "bash deploy.sh",
+    "deploy:win": "deploy.bat"
   },
   "keywords": [
     "expense",
@@ -23,6 +25,8 @@
     "concurrently": "^8.2.2"
   },
   "dependencies": {
+    "@react-native-community/cli": "^19.1.1",
+    "@react-native-community/cli-platform-android": "^19.1.1",
     "bcryptjs": "^3.0.2",
     "cors": "^2.8.5",
     "dotenv": "^17.2.1",

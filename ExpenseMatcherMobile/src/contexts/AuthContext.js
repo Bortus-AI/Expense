@@ -1,8 +1,88 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
-import AuthService from '../services/authService';
-import Toast from 'react-native-toast-message';
+import React, {createContext, useContext, useState, useEffect} from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const AuthContext = createContext();
+
+export const AuthProvider = ({children}) => {
+  const [user, setUser] = useState(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    checkAuthState();
+  }, []);
+
+  const checkAuthState = async () => {
+    try {
+      const token = await AsyncStorage.getItem('authToken');
+      if (token) {
+        // In a real app, you would validate the token with your backend
+        // For now, we'll just set a mock user
+        setUser({id: 1, name: 'John Doe', email: 'john@example.com'});
+      }
+    } catch (error) {
+      console.log('Error checking auth state:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const login = async (email, password) => {
+    try {
+      // In a real app, you would make an API call to your backend
+      // For now, we'll simulate a successful login
+      const mockUser = {id: 1, name: 'John Doe', email};
+      const mockToken = 'mock-auth-token';
+      
+      setUser(mockUser);
+      await AsyncStorage.setItem('authToken', mockToken);
+      
+      return {success: true};
+    } catch (error) {
+      return {success: false, error: error.message};
+    }
+  };
+
+  const register = async (name, email, password) => {
+    try {
+      // In a real app, you would make an API call to your backend
+      // For now, we'll simulate a successful registration
+      const mockUser = {id: 1, name, email};
+      const mockToken = 'mock-auth-token';
+      
+      setUser(mockUser);
+      await AsyncStorage.setItem('authToken', mockToken);
+      
+      return {success: true};
+    } catch (error) {
+      return {success: false, error: error.message};
+    }
+  };
+
+  const logout = async () => {
+    try {
+      setUser(null);
+      await AsyncStorage.removeItem('authToken');
+      return {success: true};
+    } catch (error) {
+      return {success: false, error: error.message};
+    }
+  };
+
+  const value = {
+    user,
+    setUser,
+    isLoading,
+    login,
+    register,
+    logout,
+  };
+
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -12,183 +92,4 @@ export const useAuth = () => {
   return context;
 };
 
-export const AuthProvider = ({ children }) => {
-  const [user, setUser] = useState(null);
-  const [companies, setCompanies] = useState([]);
-  const [currentCompany, setCurrentCompany] = useState(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    checkAuthStatus();
-  }, []);
-
-  const checkAuthStatus = async () => {
-    try {
-      const isAuth = await AuthService.isAuthenticated();
-      
-      if (isAuth) {
-        const userData = await AuthService.getCurrentUser();
-        const companyData = await AuthService.getCurrentCompany();
-        
-        setUser(userData);
-        setCurrentCompany(companyData);
-        setIsAuthenticated(true);
-        
-        // Load companies from storage
-        // You might want to refresh this from the API
-      }
-    } catch (error) {
-      console.error('Auth check error:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const login = async (email, password) => {
-    try {
-      setLoading(true);
-      const { user: userData, companies: companiesData } = await AuthService.login(email, password);
-      
-      setUser(userData);
-      setCompanies(companiesData);
-      setCurrentCompany(companiesData?.[0] || null);
-      setIsAuthenticated(true);
-      
-      Toast.show({
-        type: 'success',
-        text1: 'Welcome back!',
-        text2: `Logged in successfully`,
-      });
-      
-      return { user: userData, companies: companiesData };
-    } catch (error) {
-      Toast.show({
-        type: 'error',
-        text1: 'Login Failed',
-        text2: error.message,
-      });
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const register = async (userData) => {
-    try {
-      setLoading(true);
-      const { user: newUser, companies: companiesData } = await AuthService.register(userData);
-      
-      setUser(newUser);
-      setCompanies(companiesData);
-      setCurrentCompany(companiesData?.[0] || null);
-      setIsAuthenticated(true);
-      
-      Toast.show({
-        type: 'success',
-        text1: 'Welcome!',
-        text2: 'Account created successfully',
-      });
-      
-      return { user: newUser, companies: companiesData };
-    } catch (error) {
-      Toast.show({
-        type: 'error',
-        text1: 'Registration Failed',
-        text2: error.message,
-      });
-      throw error;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const logout = async () => {
-    try {
-      await AuthService.logout();
-      setUser(null);
-      setCompanies([]);
-      setCurrentCompany(null);
-      setIsAuthenticated(false);
-      
-      Toast.show({
-        type: 'info',
-        text1: 'Logged out',
-        text2: 'See you next time!',
-      });
-    } catch (error) {
-      console.error('Logout error:', error);
-      // Still clear local state even if API call fails
-      setUser(null);
-      setCompanies([]);
-      setCurrentCompany(null);
-      setIsAuthenticated(false);
-    }
-  };
-
-  const switchCompany = async (company) => {
-    try {
-      await AuthService.switchCompany(company);
-      setCurrentCompany(company);
-      
-      Toast.show({
-        type: 'success',
-        text1: 'Company Switched',
-        text2: `Now working with ${company.name}`,
-      });
-    } catch (error) {
-      Toast.show({
-        type: 'error',
-        text1: 'Switch Failed',
-        text2: error.message,
-      });
-    }
-  };
-
-  const uploadReceipt = async (formData) => {
-    try {
-      const result = await AuthService.uploadReceipt(formData);
-      
-      Toast.show({
-        type: 'success',
-        text1: 'Receipt Uploaded',
-        text2: 'Processing started...',
-      });
-      
-      return result;
-    } catch (error) {
-      Toast.show({
-        type: 'error',
-        text1: 'Upload Failed',
-        text2: error.message,
-      });
-      throw error;
-    }
-  };
-
-  const value = {
-    user,
-    companies,
-    currentCompany,
-    isAuthenticated,
-    loading,
-    login,
-    register,
-    logout,
-    switchCompany,
-    uploadReceipt,
-    // API methods
-    getTransactions: AuthService.getTransactions,
-    getReceipts: AuthService.getReceipts,
-    getMatches: AuthService.getMatches,
-    confirmMatch: AuthService.confirmMatch,
-    rejectMatch: AuthService.rejectMatch,
-    autoMatch: AuthService.autoMatch,
-  };
-
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
-}; 
+export default AuthContext;
