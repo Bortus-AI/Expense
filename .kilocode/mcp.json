@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "sequentialthinking": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-sequential-thinking"
+      ]
+    },
+    "context7": {
+      "url": "https://mcp.context7.com/mcp",
+      "disabled": false,
+      "alwaysAllow": []
+    }
+  }
+}
