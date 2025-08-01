@@ -6,7 +6,7 @@ import android.util.Log;
 import com.example.expensereceiptmatcher.data.api.ApiClient;
 import com.example.expensereceiptmatcher.data.api.ApiService;
 import com.example.expensereceiptmatcher.data.api.ApiResponse;
-import com.example.expensereceiptmatcher.domain.model.Receipt;
+import com.example.expensereceiptmatcher.domain.model.Transaction;
 
 import java.io.File;
 import java.util.List;
@@ -18,42 +18,42 @@ import retrofit2.Call;
 import retrofit2.Callback;
 import retrofit2.Response;
 
-public class ReceiptRepository {
-    private static final String TAG = "ReceiptRepository";
+public class TransactionRepository {
+    private static final String TAG = "TransactionRepository";
     private ApiClient apiClient;
     private ApiService apiService;
     
-    public ReceiptRepository(Context context) {
+    public TransactionRepository(Context context) {
         apiClient = ApiClient.getInstance(context);
         apiService = apiClient.getApiService();
     }
     
-    public interface ReceiptCallback<T> {
+    public interface TransactionCallback<T> {
         void onSuccess(T response);
         void onError(String error);
     }
     
-    // Get all receipts
-    public void getAllReceipts(Integer page, Integer limit, String status, ReceiptCallback<List<Receipt>> callback) {
+    // Get all transactions
+    public void getAllTransactions(Integer page, Integer limit, String status, TransactionCallback<List<Transaction>> callback) {
         String companyId = apiClient.getCompanyId();
         if (companyId == null) {
             callback.onError("No company selected");
             return;
         }
         
-        Call<ApiResponse<List<Receipt>>> call = apiService.getReceipts(page, limit, status, companyId);
-        call.enqueue(new Callback<ApiResponse<List<Receipt>>>() {
+        Call<ApiResponse<List<Transaction>>> call = apiService.getTransactions(page, limit, status, companyId);
+        call.enqueue(new Callback<ApiResponse<List<Transaction>>>() {
             @Override
-            public void onResponse(Call<ApiResponse<List<Receipt>>> call, Response<ApiResponse<List<Receipt>>> response) {
+            public void onResponse(Call<ApiResponse<List<Transaction>>> call, Response<ApiResponse<List<Transaction>>> response) {
                 if (response.isSuccessful() && response.body() != null) {
-                    ApiResponse<List<Receipt>> apiResponse = response.body();
+                    ApiResponse<List<Transaction>> apiResponse = response.body();
                     if (apiResponse.getData() != null) {
                         callback.onSuccess(apiResponse.getData());
                     } else {
                         callback.onError("No data received");
                     }
                 } else {
-                    String error = "Failed to fetch receipts";
+                    String error = "Failed to fetch transactions";
                     if (response.errorBody() != null) {
                         error = response.message();
                     }
@@ -62,34 +62,34 @@ public class ReceiptRepository {
             }
             
             @Override
-            public void onFailure(Call<ApiResponse<List<Receipt>>> call, Throwable t) {
-                Log.e(TAG, "Failed to fetch receipts", t);
+            public void onFailure(Call<ApiResponse<List<Transaction>>> call, Throwable t) {
+                Log.e(TAG, "Failed to fetch transactions", t);
                 callback.onError("Network error: " + t.getMessage());
             }
         });
     }
     
-    // Get receipt by ID
-    public void getReceiptById(int id, ReceiptCallback<Receipt> callback) {
+    // Get transaction by ID
+    public void getTransactionById(int id, TransactionCallback<Transaction> callback) {
         String companyId = apiClient.getCompanyId();
         if (companyId == null) {
             callback.onError("No company selected");
             return;
         }
         
-        Call<ApiResponse<Receipt>> call = apiService.getReceipt(id, companyId);
-        call.enqueue(new Callback<ApiResponse<Receipt>>() {
+        Call<ApiResponse<Transaction>> call = apiService.getTransaction(id, companyId);
+        call.enqueue(new Callback<ApiResponse<Transaction>>() {
             @Override
-            public void onResponse(Call<ApiResponse<Receipt>> call, Response<ApiResponse<Receipt>> response) {
+            public void onResponse(Call<ApiResponse<Transaction>> call, Response<ApiResponse<Transaction>> response) {
                 if (response.isSuccessful() && response.body() != null) {
-                    ApiResponse<Receipt> apiResponse = response.body();
+                    ApiResponse<Transaction> apiResponse = response.body();
                     if (apiResponse.getData() != null) {
                         callback.onSuccess(apiResponse.getData());
                     } else {
-                        callback.onError("Receipt not found");
+                        callback.onError("Transaction not found");
                     }
                 } else {
-                    String error = "Failed to fetch receipt";
+                    String error = "Failed to fetch transaction";
                     if (response.errorBody() != null) {
                         error = response.message();
                     }
@@ -98,15 +98,15 @@ public class ReceiptRepository {
             }
             
             @Override
-            public void onFailure(Call<ApiResponse<Receipt>> call, Throwable t) {
-                Log.e(TAG, "Failed to fetch receipt", t);
+            public void onFailure(Call<ApiResponse<Transaction>> call, Throwable t) {
+                Log.e(TAG, "Failed to fetch transaction", t);
                 callback.onError("Network error: " + t.getMessage());
             }
         });
     }
     
-    // Upload receipt
-    public void uploadReceipt(File file, ReceiptCallback<Receipt> callback) {
+    // Import transactions from CSV
+    public void importTransactions(File csvFile, TransactionCallback<Void> callback) {
         String companyId = apiClient.getCompanyId();
         if (companyId == null) {
             callback.onError("No company selected");
@@ -114,89 +114,17 @@ public class ReceiptRepository {
         }
         
         // Create request body for file
-        RequestBody requestFile = RequestBody.create(file, MediaType.parse("multipart/form-data"));
-        MultipartBody.Part body = MultipartBody.Part.createFormData("file", file.getName(), requestFile);
+        RequestBody requestFile = RequestBody.create(csvFile, MediaType.parse("text/csv"));
+        MultipartBody.Part body = MultipartBody.Part.createFormData("csvFile", csvFile.getName(), requestFile);
         
-        Call<ApiResponse<Receipt>> call = apiService.uploadReceipt(body, companyId);
-        call.enqueue(new Callback<ApiResponse<Receipt>>() {
-            @Override
-            public void onResponse(Call<ApiResponse<Receipt>> call, Response<ApiResponse<Receipt>> response) {
-                if (response.isSuccessful() && response.body() != null) {
-                    ApiResponse<Receipt> apiResponse = response.body();
-                    if (apiResponse.getData() != null) {
-                        callback.onSuccess(apiResponse.getData());
-                    } else {
-                        callback.onError("Failed to upload receipt");
-                    }
-                } else {
-                    String error = "Failed to upload receipt";
-                    if (response.errorBody() != null) {
-                        error = response.message();
-                    }
-                    callback.onError(error);
-                }
-            }
-            
-            @Override
-            public void onFailure(Call<ApiResponse<Receipt>> call, Throwable t) {
-                Log.e(TAG, "Failed to upload receipt", t);
-                callback.onError("Network error: " + t.getMessage());
-            }
-        });
-    }
-    
-    // Update receipt
-    public void updateReceipt(Receipt receipt, ReceiptCallback<Receipt> callback) {
-        String companyId = apiClient.getCompanyId();
-        if (companyId == null) {
-            callback.onError("No company selected");
-            return;
-        }
-        
-        Call<ApiResponse<Receipt>> call = apiService.updateReceipt(receipt.getId(), receipt, companyId);
-        call.enqueue(new Callback<ApiResponse<Receipt>>() {
-            @Override
-            public void onResponse(Call<ApiResponse<Receipt>> call, Response<ApiResponse<Receipt>> response) {
-                if (response.isSuccessful() && response.body() != null) {
-                    ApiResponse<Receipt> apiResponse = response.body();
-                    if (apiResponse.getData() != null) {
-                        callback.onSuccess(apiResponse.getData());
-                    } else {
-                        callback.onError("Failed to update receipt");
-                    }
-                } else {
-                    String error = "Failed to update receipt";
-                    if (response.errorBody() != null) {
-                        error = response.message();
-                    }
-                    callback.onError(error);
-                }
-            }
-            
-            @Override
-            public void onFailure(Call<ApiResponse<Receipt>> call, Throwable t) {
-                Log.e(TAG, "Failed to update receipt", t);
-                callback.onError("Network error: " + t.getMessage());
-            }
-        });
-    }
-    
-    // Delete receipt
-    public void deleteReceipt(int id, ReceiptCallback<Void> callback) {
-        String companyId = apiClient.getCompanyId();
-        if (companyId == null) {
-            callback.onError("No company selected");
-            return;
-        }
-        
-        Call<ApiResponse<Void>> call = apiService.deleteReceipt(id, companyId);
+        Call<ApiResponse<Void>> call = apiService.importTransactions(body, companyId);
         call.enqueue(new Callback<ApiResponse<Void>>() {
             @Override
             public void onResponse(Call<ApiResponse<Void>> call, Response<ApiResponse<Void>> response) {
                 if (response.isSuccessful()) {
                     callback.onSuccess(null);
                 } else {
-                    String error = "Failed to delete receipt";
+                    String error = "Failed to import transactions";
                     if (response.errorBody() != null) {
                         error = response.message();
                     }
@@ -206,33 +134,33 @@ public class ReceiptRepository {
             
             @Override
             public void onFailure(Call<ApiResponse<Void>> call, Throwable t) {
-                Log.e(TAG, "Failed to delete receipt", t);
+                Log.e(TAG, "Failed to import transactions", t);
                 callback.onError("Network error: " + t.getMessage());
             }
         });
     }
     
-    // Get unmatched receipts
-    public void getUnmatchedReceipts(ReceiptCallback<List<Receipt>> callback) {
+    // Update transaction
+    public void updateTransaction(Transaction transaction, TransactionCallback<Transaction> callback) {
         String companyId = apiClient.getCompanyId();
         if (companyId == null) {
             callback.onError("No company selected");
             return;
         }
         
-        Call<ApiResponse<List<Receipt>>> call = apiService.getUnmatchedReceipts(companyId);
-        call.enqueue(new Callback<ApiResponse<List<Receipt>>>() {
+        Call<ApiResponse<Transaction>> call = apiService.updateTransaction(transaction.getId(), transaction, companyId);
+        call.enqueue(new Callback<ApiResponse<Transaction>>() {
             @Override
-            public void onResponse(Call<ApiResponse<List<Receipt>>> call, Response<ApiResponse<List<Receipt>>> response) {
+            public void onResponse(Call<ApiResponse<Transaction>> call, Response<ApiResponse<Transaction>> response) {
                 if (response.isSuccessful() && response.body() != null) {
-                    ApiResponse<List<Receipt>> apiResponse = response.body();
+                    ApiResponse<Transaction> apiResponse = response.body();
                     if (apiResponse.getData() != null) {
                         callback.onSuccess(apiResponse.getData());
                     } else {
-                        callback.onError("No data received");
+                        callback.onError("Failed to update transaction");
                     }
                 } else {
-                    String error = "Failed to fetch unmatched receipts";
+                    String error = "Failed to update transaction";
                     if (response.errorBody() != null) {
                         error = response.message();
                     }
@@ -241,8 +169,75 @@ public class ReceiptRepository {
             }
             
             @Override
-            public void onFailure(Call<ApiResponse<List<Receipt>>> call, Throwable t) {
-                Log.e(TAG, "Failed to fetch unmatched receipts", t);
+            public void onFailure(Call<ApiResponse<Transaction>> call, Throwable t) {
+                Log.e(TAG, "Failed to update transaction", t);
+                callback.onError("Network error: " + t.getMessage());
+            }
+        });
+    }
+    
+    // Delete transaction
+    public void deleteTransaction(int id, TransactionCallback<Void> callback) {
+        String companyId = apiClient.getCompanyId();
+        if (companyId == null) {
+            callback.onError("No company selected");
+            return;
+        }
+        
+        Call<ApiResponse<Void>> call = apiService.deleteTransaction(id, companyId);
+        call.enqueue(new Callback<ApiResponse<Void>>() {
+            @Override
+            public void onResponse(Call<ApiResponse<Void>> call, Response<ApiResponse<Void>> response) {
+                if (response.isSuccessful()) {
+                    callback.onSuccess(null);
+                } else {
+                    String error = "Failed to delete transaction";
+                    if (response.errorBody() != null) {
+                        error = response.message();
+                    }
+                    callback.onError(error);
+                }
+            }
+            
+            @Override
+            public void onFailure(Call<ApiResponse<Void>> call, Throwable t) {
+                Log.e(TAG, "Failed to delete transaction", t);
+                callback.onError("Network error: " + t.getMessage());
+            }
+        });
+    }
+    
+    // Get unmatched transactions
+    public void getUnmatchedTransactions(TransactionCallback<List<Transaction>> callback) {
+        String companyId = apiClient.getCompanyId();
+        if (companyId == null) {
+            callback.onError("No company selected");
+            return;
+        }
+        
+        Call<ApiResponse<List<Transaction>>> call = apiService.getTransactions(null, null, "unmatched", companyId);
+        call.enqueue(new Callback<ApiResponse<List<Transaction>>>() {
+            @Override
+            public void onResponse(Call<ApiResponse<List<Transaction>>> call, Response<ApiResponse<List<Transaction>>> response) {
+                if (response.isSuccessful() && response.body() != null) {
+                    ApiResponse<List<Transaction>> apiResponse = response.body();
+                    if (apiResponse.getData() != null) {
+                        callback.onSuccess(apiResponse.getData());
+                    } else {
+                        callback.onError("No data received");
+                    }
+                } else {
+                    String error = "Failed to fetch unmatched transactions";
+                    if (response.errorBody() != null) {
+                        error = response.message();
+                    }
+                    callback.onError(error);
+                }
+            }
+            
+            @Override
+            public void onFailure(Call<ApiResponse<List<Transaction>>> call, Throwable t) {
+                Log.e(TAG, "Failed to fetch unmatched transactions", t);
                 callback.onError("Network error: " + t.getMessage());
             }
         });

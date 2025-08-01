@@ -12,6 +12,12 @@
         tools:layout="@layout/fragment_home" />
 
     <fragment
+        android:id="@+id/navigation_transactions"
+        android:name="com.example.expensereceiptmatcher.presentation.transactions.TransactionsFragment"
+        android:label="@string/navigation_transactions"
+        tools:layout="@layout/fragment_transactions" />
+
+    <fragment
         android:id="@+id/navigation_scan"
         android:name="com.example.expensereceiptmatcher.presentation.scan.ScanFragment"
         android:label="@string/navigation_scan"
@@ -24,9 +30,9 @@
         tools:layout="@layout/fragment_matches" />
 
     <fragment
-        android:id="@+id/navigation_settings"
-        android:name="com.example.expensereceiptmatcher.presentation.settings.SettingsFragment"
-        android:label="@string/navigation_settings"
-        tools:layout="@layout/fragment_settings" />
+        android:id="@+id/navigation_profile"
+        android:name="com.example.expensereceiptmatcher.presentation.profile.ProfileFragment"
+        android:label="@string/navigation_profile"
+        tools:layout="@layout/fragment_profile" />
 
 </navigation>
