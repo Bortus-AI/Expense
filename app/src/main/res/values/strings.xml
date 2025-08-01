@@ -1,0 +1,52 @@
+<resources>
+    <string name="app_name">Expense Receipt Matcher</string>
+    <string name="title_activity_main">Expense Receipt Matcher</string>
+    <string name="title_activity_receipt_scanner">Scan Receipt</string>
+    <string name="title_activity_receipt_details">Receipt Details</string>
+    <string name="title_activity_matches">Matched Transactions</string>
+    <string name="title_activity_settings">Settings</string>
+    
+    <!-- Navigation -->
+    <string name="navigation_home">Home</string>
+    <string name="navigation_scan">Scan</string>
+    <string name="navigation_matches">Matches</string>
+    <string name="navigation_settings">Settings</string>
+    
+    <!-- Common actions -->
+    <string name="action_settings">Settings</string>
+    <string name="action_refresh">Refresh</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_edit">Edit</string>
+    
+    <!-- Receipt scanning -->
+    <string name="scan_receipt">Scan Receipt</string>
+    <string name="capture_receipt">Capture Receipt</string>
+    <string name="select_from_gallery">Select from Gallery</string>
+    <string name="processing_receipt">Processing receipt…</string>
+    
+    <!-- Receipt details -->
+    <string name="receipt_date">Date</string>
+    <string name="receipt_amount">Amount</string>
+    <string name="receipt_vendor">Vendor</string>
+    <string name="receipt_category">Category</string>
+    <string name="receipt_notes">Notes</string>
+    
+    <!-- Matches -->
+    <string name="match_with_transaction">Match with Transaction</string>
+    <string name="view_matches">View Matches</string>
+    <string name="no_matches_found">No matches found</string>
+    
+    <!-- Settings -->
+    <string name="settings_category_general">General</string>
+    <string name="settings_category_matching">Matching</string>
+    <string name="settings_category_sync">Sync</string>
+    
+    <!-- Error messages -->
+    <string name="error_camera_permission">Camera permission is required to scan receipts</string>
+    <string name="error_storage_permission">Storage permission is required to access gallery</string>
+    <string name="error_network">Network error. Please check your connection.</string>
+    
+    <!-- Success messages -->
+    <string name="success_receipt_scanned">Receipt scanned successfully</string>
+    <string name="success_match_created">Match created successfully</string>
+</resources>
